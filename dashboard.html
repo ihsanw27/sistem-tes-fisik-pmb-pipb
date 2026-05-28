@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Monitor Tes Fisik PMB</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { --bg-page: #e8eef2; --bg-card: #fdfdfd; --text-main: #334155; --text-muted: #64748b; --accent: #5b7cfa; --accent-soft: #edf2ff; --success: #38d9a9; --danger: #ff8787; --warning: #fcc419; --info: #4dabf7; --purple: #845ef7; --border-soft: #dce4ec; }
+    body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; display: flex; flex-direction: column; }
+    .login-wrapper { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .card-login { background: var(--bg-card); border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(100,116,139,0.06); padding: 40px 30px; border: 1px solid #ffffff; width: 100%; max-width: 420px; text-align: center; }
+    .campus-logo { max-height: 60px; width: auto; margin: 0 auto 25px auto; display: block; object-fit: contain; }
+    .btn-google { background: #ffffff; color: #334155; border: 2px solid var(--border-soft); box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-radius: 14px; padding: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.2s; width: 100%; cursor: pointer; }
+    .btn-google:hover { border-color: #4285f4; box-shadow: 0 4px 16px rgba(66,133,244,0.15); }
+    .btn-google img { width: 22px; height: 22px; }
+    .dashboard-wrapper { flex-grow: 1; padding: 20px; }
+    .navbar-custom { background: var(--bg-card); border-radius: 20px; padding: 15px 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ffffff; }
+    .stat-card { background: var(--bg-card); border-radius: 20px; padding: 25px; border: 1px solid #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); height: 100%; display: flex; flex-direction: column; transition: all 0.3s ease; }
+    .stat-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+    .stat-val { font-size: 3rem; font-weight: 800; line-height: 1; margin: 0; }
+    .progress { background-color: #edf2f7; border-radius: 50rem; overflow: hidden; }
+    .progress-bar { transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
+    .micro-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    .table-container { background: var(--bg-card); border-radius: 20px; padding: 25px; border: 1px solid #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); overflow-x: auto; }
+    .table th { background-color: #f8fafc; color: var(--text-muted); font-weight: 600; font-size: 0.8rem; border-bottom: 2px solid var(--border-soft); padding: 15px; }
+    .table td { padding: 15px; vertical-align: middle; border-bottom: 1px solid var(--border-soft); font-size: 0.85rem; font-weight: 500; }
+    .hidden { display: none !important; }
+    .fade-in { animation: fadeIn 0.4s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .link-detail { transition: all 0.2s ease; cursor: pointer; text-decoration: none; font-size: 0.75rem; font-weight: 700; display: block; margin-top: 4px; }
+    .link-detail:hover { opacity: 0.7; text-decoration: underline; }
+    .photo-thumb-modal { width: 120px; height: 120px; object-fit: cover; border-radius: 15px; border: 3px solid var(--accent-soft); margin: 0 auto 15px; display: block; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-soft); }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="view-login" class="login-wrapper fade-in">
+    <div class="card-login">
+      <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo" class="campus-logo">
+      <h4 class="fw-bold mb-1">Portal Dashboard</h4>
+      <p class="small mb-4 fw-medium text-muted">Dashboard Monitor Tes Fisik PMB</p>
+      <button onclick="loginGoogle()" class="btn-google" id="btn-login">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+        <span id="l-text">Masuk dengan Google</span>
+      </button>
+      <p class="small text-muted mt-3 mb-0" style="font-size:0.75rem;">
+        <i class="bi bi-shield-lock me-1"></i>Hanya panitia terdaftar dengan akun <strong>@poltek-petrokimia.ac.id</strong> yang dapat mengakses.
+      </p>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="view-dashboard" class="dashboard-wrapper hidden fade-in">
+    <div class="navbar-custom container-fluid">
+      <div class="d-flex align-items-center gap-3">
+        <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo" style="height: 40px; object-fit: contain;">
+        <div class="border-start ps-3 border-2" style="border-color: var(--border-soft) !important;">
+          <h5 class="mb-0 fw-bold">Monitor Tes Fisik PMB</h5>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <div class="text-end d-none d-md-block">
+          <small class="text-muted d-block" style="font-size:0.65rem;">PANITIA LOGIN</small>
+          <strong id="admin-nama" class="fs-6 text-primary">-</strong>
+        </div>
+        <img id="user-avatar" src="" class="user-avatar hidden" alt="">
+        <button onclick="toggleLivestream()" id="btn-livestream" class="btn btn-light rounded-circle border p-2 text-primary" title="Mode Livestream"><i class="bi bi-display"></i></button>
+        <button onclick="loadData()" id="btn-refresh" class="btn btn-light rounded-circle border p-2" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+        <button onclick="exportCSV()" class="btn btn-light rounded-circle border p-2 text-success" title="Export CSV"><i class="bi bi-download"></i></button>
+        <button onclick="logout()" class="btn btn-light rounded-circle border p-2 text-danger" title="Keluar"><i class="bi bi-power"></i></button>
+      </div>
+    </div>
+
+    <div class="container-fluid mb-4">
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="stat-card">
+            <div class="stat-title text-primary"><i class="bi bi-people-fill"></i> Total Peserta Melakukan Check-in Kehadiran</div>
+            <div class="d-flex justify-content-between align-items-end mb-2">
+              <h2 class="fw-bold mb-0"><span id="d-hadir">0</span> / <span id="d-total">0</span> <small class="fs-6 text-muted">Peserta</small></h2>
+              <div class="fw-bold fs-3 text-primary"><span id="d-persen">0</span>%</div>
+            </div>
+            <div class="progress" style="height: 12px;"><div id="bar-hadir" class="progress-bar bg-primary" style="width: 0%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-lg-4 col-md-6">
+          <div class="stat-card">
+            <div class="stat-title text-warning"><i class="bi bi-shield-check"></i> 1. Verifikasi Administrasi</div>
+            <div class="mb-3"><div class="d-flex justify-content-between micro-label"><span>Persentase Pengecekan</span><span id="d-persen-verif">0%</span></div><div class="progress" style="height:8px;"><div id="bar-lolos-verif" class="progress-bar bg-warning" style="width:0%"></div></div></div>
+            <div class="mt-auto pt-2 border-top d-flex justify-content-between small fw-bold text-muted"><span>Lolos: <span id="d-lolos-verif" class="text-success">0</span></span><span>Gagal: <span id="d-gagal-verif" class="text-danger">0</span></span><span>Belum: <span id="d-antre-verif">0</span></span></div>
+          </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
+          <div class="stat-card">
+            <div class="stat-title text-primary"><i class="bi bi-stopwatch"></i> 2. Tes Lari</div>
+            <div class="mb-3"><div class="d-flex justify-content-between micro-label"><span>Penyelesaian Tes</span><span id="d-persen-lari">0%</span></div><div class="progress" style="height:8px;"><div id="bar-lari" class="progress-bar bg-primary" style="width:0%"></div></div></div>
+            <div class="mt-auto pt-2 border-top d-flex justify-content-between small fw-bold text-muted"><span>Sudah: <span id="d-sudah-lari" class="text-primary">0</span></span><span>Belum: <span id="d-antre-lari">0</span></span></div>
+          </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
+          <div class="stat-card">
+            <div class="stat-title text-info"><i class="bi bi-ladder"></i> 3. Tes Ketinggian</div>
+            <div class="mb-3"><div class="d-flex justify-content-between micro-label"><span>Penyelesaian Tes</span><span id="d-persen-tinggi">0%</span></div><div class="progress" style="height:8px;"><div id="bar-tinggi" class="progress-bar bg-info" style="width:0%"></div></div></div>
+            <div class="mt-auto pt-2 border-top d-flex justify-content-between small fw-bold text-muted"><span>Lolos: <span id="d-lolos-tinggi" class="text-success">0</span></span><span>Gagal: <span id="d-gagal-tinggi" class="text-danger">0</span></span><span>Belum: <span id="d-antre-tinggi">0</span></span></div>
+          </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
+          <div class="stat-card">
+            <div class="stat-title" style="color:var(--purple);"><i class="bi bi-box-seam"></i> 4. Ruang Sempit &amp; Gelap</div>
+            <div class="mb-3"><div class="d-flex justify-content-between micro-label"><span>Penyelesaian Tes</span><span id="d-persen-sempit">0%</span></div><div class="progress" style="height:8px;"><div id="bar-sempit" class="progress-bar" style="background-color:var(--purple);width:0%"></div></div></div>
+            <div class="mt-auto pt-2 border-top d-flex justify-content-between small fw-bold text-muted"><span>Lolos: <span id="d-lolos-sempit" class="text-success">0</span></span><span>Gagal: <span id="d-gagal-sempit" class="text-danger">0</span></span><span>Belum: <span id="d-antre-sempit">0</span></span></div>
+          </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
+          <div id="p3k-card" class="stat-card text-center justify-content-center" style="border:2px solid var(--success);">
+            <div id="p3k-title" class="stat-title justify-content-center text-success"><i class="bi bi-bandaid"></i> Laporan Insiden Kesehatan</div>
+            <p class="stat-val text-success" id="d-medis">0</p>
+            <p class="small fw-bold text-success mb-0 mt-2" id="p3k-sub">Peserta Ditangani Tim Kesehatan</p>
+          </div>
+        </div>
+
+        <div class="col-lg-4 col-md-12">
+          <div class="stat-card" style="background: linear-gradient(135deg, var(--accent) 0%, #3b5bdb 100%); color: white; border: none;">
+            <div class="stat-title text-white opacity-75"><i class="bi bi-check2-all"></i> 5. Peserta yang Sudah Selesai</div>
+            <h2 class="fw-bold mb-0 text-white"><span id="d-selesai-semua">0</span> <small class="fs-6 opacity-75">Orang</small></h2>
+            <p class="small fw-medium opacity-75 mt-auto mb-0 pt-3 border-top border-light">*Lolos verifikasi & telah menyelesaikan seluruh tes fisik.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid" id="section-tabel">
+      <div class="table-container">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+          <div>
+            <h5 class="fw-bold mb-1">Rekapitulasi Penilaian Akhir</h5>
+            <small class="text-muted" id="last-update-label">-</small>
+          </div>
+          <div class="input-group" style="max-width:350px;">
+            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Cari Nama atau No Peserta..." onkeyup="filterTable()">
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>NO</th><th>NAMA &amp; BIODATA</th><th>VERIF ADM</th>
+                <th class="text-center">TES LARI</th><th class="text-center">KETINGGIAN</th>
+                <th class="text-center">RUANG SEMPIT</th><th>MEDIS</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-peserta">
+              <tr><td colspan="7" class="text-center py-5 text-muted">Memuat data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
+
+    const { createClient } = supabase;
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let allData = [], isLivestreamMode = false, liveInterval = null;
+
+    function fmt(iso) {
+      if (!iso) return '';
+      try { return new Date(iso).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }); } catch { return iso; }
+    }
+
+    // ── AUTH ──────────────────────────────────────────
+    async function loginGoogle() {
+      document.getElementById("l-text").innerText = "Mengarahkan...";
+      document.getElementById("btn-login").disabled = true;
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.href,
+          queryParams: { hd: 'poltek-petrokimia.ac.id' }
+        }
+      });
+      if (error) {
+        Swal.fire({ icon:'error', text: error.message, confirmButtonColor:'#5b7cfa' });
+        document.getElementById("l-text").innerText = "Masuk dengan Google";
+        document.getElementById("btn-login").disabled = false;
+      }
+    }
+
+    async function checkSession() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const email = session.user.email;
+      const avatar = session.user.user_metadata?.avatar_url || '';
+      const { data: rows, error } = await sb.from('panitia').select('nama,penugasan').eq('email', email).single();
+
+      if (error || !rows) {
+        await sb.auth.signOut();
+        return Swal.fire({ icon:'error', title:'Akses Ditolak', text:`Akun ${email} tidak terdaftar sebagai panitia.`, confirmButtonColor:'#5b7cfa' });
+      }
+
+      sessionStorage.setItem("dashSess", JSON.stringify({ nama: rows.nama, avatar }));
+      restoreSession(rows.nama, avatar);
+    }
+
+    async function logout() {
+      await sb.auth.signOut();
+      sessionStorage.removeItem("dashSess");
+      clearInterval(liveInterval);
+      location.reload();
+    }
+
+    window.onload = async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      const cached = sessionStorage.getItem("dashSess");
+      if (session && cached) {
+        const s = JSON.parse(cached);
+        restoreSession(s.nama, s.avatar);
+      } else if (session) {
+        await checkSession();
+      }
+    };
+
+    function restoreSession(nama, avatar) {
+      document.getElementById("view-login").classList.add("hidden");
+      document.getElementById("view-dashboard").classList.remove("hidden");
+      document.getElementById("admin-nama").innerText = nama;
+      if (avatar) { const av = document.getElementById("user-avatar"); av.src = avatar; av.classList.remove("hidden"); }
+      loadData();
+    }
+
+    // ── DATA ──────────────────────────────────────────
+    async function loadData(showToast = true) {
+      let btn = document.getElementById("btn-refresh");
+      if (btn) { btn.disabled = true; btn.querySelector('i').className = "bi bi-arrow-clockwise spinner-border spinner-border-sm"; }
+      try {
+        const { data, error } = await sb.from('peserta').select('*').order('nomor_peserta', { ascending: true });
+        if (error) throw error;
+        allData = data;
+        updateStats(computeStats(data));
+        renderTable(data);
+        document.getElementById("last-update-label").innerText = `Terakhir diperbarui: ${new Date().toLocaleString('id-ID')}`;
+        if (showToast) Swal.fire({ title:'Sync OK', timer:800, toast:true, position:'top-end', showConfirmButton:false, icon:'success' });
+      } catch(e) {
+        if (showToast) Swal.fire({ icon:'error', text:'Gagal memuat data.', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+      }
+      if (btn) { btn.disabled = false; btn.querySelector('i').className = "bi bi-arrow-clockwise"; }
+    }
+
+    function computeStats(rows) {
+      const total = rows.length;
+      const hadir = rows.filter(p => p.kehadiran).length;
+      const hadirRows = rows.filter(p => p.kehadiran);
+      const sudahVerif = hadirRows.filter(p => p.lolos_verifikasi).length;
+      const lolosVerif = hadirRows.filter(p => p.lolos_verifikasi === 'Lolos').length;
+      const gagalVerif = hadirRows.filter(p => p.lolos_verifikasi === 'Tidak Lolos').length;
+      const base = lolosVerif;
+      const lolosRows = hadirRows.filter(p => p.lolos_verifikasi === 'Lolos');
+      const sudahLari = lolosRows.filter(p => p.stik_merah !== null || p.stik_kuning !== null || p.stik_hijau !== null || p.stik_biru !== null).length;
+      const sudahKetinggian = lolosRows.filter(p => p.lolos_ketinggian).length;
+      const lolosKetinggian = lolosRows.filter(p => p.lolos_ketinggian === 'Lolos').length;
+      const gagalKetinggian = lolosRows.filter(p => p.lolos_ketinggian === 'Tidak Lolos').length;
+      const sudahSempit = lolosRows.filter(p => p.lolos_sempit).length;
+      const lolosSempit = lolosRows.filter(p => p.lolos_sempit === 'Lolos').length;
+      const gagalSempit = lolosRows.filter(p => p.lolos_sempit === 'Tidak Lolos').length;
+      const insidenMedis = rows.filter(p => p.catatan_medis).length;
+      return { total, hadir, persentaseHadir: total > 0 ? Math.round(hadir/total*100) : 0, sudahVerif, lolosVerif, gagalVerif, base, sudahLari, sudahKetinggian, lolosKetinggian, gagalKetinggian, sudahSempit, lolosSempit, gagalSempit, insidenMedis };
+    }
+
+    function pct(a, b) { return b > 0 ? Math.round(a/b*100) : 0; }
+
+    function updateStats(s) {
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+      const bar = (id, val) => { const el = document.getElementById(id); if (el) el.style.width = val + '%'; };
+
+      set('d-total', s.total); set('d-hadir', s.hadir); set('d-persen', s.persentaseHadir); bar('bar-hadir', s.persentaseHadir);
+
+      let pVerif = pct(s.sudahVerif, s.hadir);
+      set('d-lolos-verif', s.lolosVerif); set('d-gagal-verif', s.gagalVerif); set('d-antre-verif', s.hadir - s.sudahVerif);
+      set('d-persen-verif', pVerif+'%'); bar('bar-lolos-verif', pVerif);
+
+      let pLari = pct(s.sudahLari, s.base);
+      set('d-sudah-lari', s.sudahLari); set('d-antre-lari', s.base - s.sudahLari);
+      set('d-persen-lari', pLari+'%'); bar('bar-lari', pLari);
+
+      let pTinggi = pct(s.sudahKetinggian, s.base);
+      set('d-lolos-tinggi', s.lolosKetinggian); set('d-gagal-tinggi', s.gagalKetinggian); set('d-antre-tinggi', s.base - s.sudahKetinggian);
+      set('d-persen-tinggi', pTinggi+'%'); bar('bar-tinggi', pTinggi);
+
+      let pSempit = pct(s.sudahSempit, s.base);
+      set('d-lolos-sempit', s.lolosSempit); set('d-gagal-sempit', s.gagalSempit); set('d-antre-sempit', s.base - s.sudahSempit);
+      set('d-persen-sempit', pSempit+'%'); bar('bar-sempit', pSempit);
+
+      set('d-medis', s.insidenMedis);
+      const card = document.getElementById('p3k-card');
+      const isAlert = s.insidenMedis > 0;
+      card.style.borderColor = isAlert ? 'var(--danger)' : 'var(--success)';
+      card.style.background = isAlert ? '#fff5f5' : '#fdfdfd';
+      ['p3k-title','d-medis','p3k-sub'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.remove('text-success','text-danger'); el.classList.add(isAlert?'text-danger':'text-success'); }
+      });
+    }
+
+    function toggleLivestream() {
+      isLivestreamMode = !isLivestreamMode;
+      const tabel = document.getElementById("section-tabel");
+      const icon = document.querySelector("#btn-livestream i");
+      if (isLivestreamMode) {
+        tabel.classList.add("hidden"); icon.classList.replace("bi-display","bi-display-fill");
+        liveInterval = setInterval(() => loadData(false), 15000);
+        Swal.fire({ title:'Mode Livestream Aktif', text:'Refresh otomatis tiap 15 detik.', icon:'success', timer:2000, showConfirmButton:false, toast:true, position:'top-end' });
+      } else {
+        tabel.classList.remove("hidden"); icon.classList.replace("bi-display-fill","bi-display");
+        clearInterval(liveInterval);
+      }
+    }
+
+    function showBiodata(pStr) {
+      let p; try { p = JSON.parse(pStr); } catch { return; }
+      const fotoHtml = p.foto ? `<img src="${p.foto}" class="photo-thumb-modal shadow-sm">` : `<div class="photo-thumb-modal bg-light d-flex align-items-center justify-content-center border" style="display:flex!important;"><i class="bi bi-person text-muted fs-1"></i></div>`;
+      Swal.fire({ title:'Profil Peserta', html:`${fotoHtml}<div class="text-start small"><table class="table table-sm table-borderless"><tr><td width="100" class="fw-bold">NIK</td><td>: ${p.nik||'-'}</td></tr><tr><td class="fw-bold">Nama</td><td>: ${p.nama}</td></tr><tr><td class="fw-bold">Gender</td><td>: ${p.jenis_kelamin==='L'?'Laki-laki':'Perempuan'}</td></tr><tr><td class="fw-bold">Jalur</td><td>: ${p.jalur||'-'}</td></tr><tr class="border-top"><td colspan="2" class="pt-2 fw-bold text-primary">Pilihan Jurusan:</td></tr><tr><td class="fw-bold">Jurusan 1</td><td>: ${p.jurusan_1||'-'}</td></tr><tr><td class="fw-bold">Jurusan 2</td><td>: ${p.jurusan_2||'-'}</td></tr></table></div>`, confirmButtonText:'Tutup', confirmButtonColor:'#5b7cfa' });
+    }
+
+    function showDetail(nama, pos, catatan, panitia, waktu) {
+      Swal.fire({ title:`Detail ${pos}`, html:`<div class="text-start small"><p class="mb-1 fw-bold">Peserta: ${nama}</p><hr><p class="mb-1 fw-bold text-primary">Log Panitia:</p><p class="mb-2 bg-light p-2 rounded">Oleh: ${panitia||'-'}<br>Waktu: ${waktu||'-'}</p><p class="mb-1 fw-bold text-primary">Catatan:</p><div class="p-2 border rounded bg-white">${catatan||'Tidak ada catatan.'}</div></div>`, confirmButtonText:'Tutup', confirmButtonColor:'#5b7cfa' });
+    }
+
+    function renderTable(rows) {
+      let tbody = document.getElementById("tbody-peserta"); tbody.innerHTML = "";
+      const hadirRows = rows.filter(p => p.kehadiran);
+      if (!hadirRows.length) { tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted">Belum ada peserta yang check-in.</td></tr>`; document.getElementById("d-selesai-semua").innerText = 0; return; }
+
+      let selesai = 0;
+      const safe = v => (v||'').toString().replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      const vBadge = v => v==='Lolos'?`<span class="badge bg-success">Lolos</span>`:v==='Tidak Lolos'?`<span class="badge bg-danger">Tidak Lolos</span>`:`<span class="badge bg-secondary">Pending</span>`;
+      const btnLog = (cat,pos,pan,wak,color) => (cat||pan)?`<a onclick="showDetail('${safe(hadirRows[0]?.nama||'')}','${pos}','${safe(cat)}','${safe(pan)}','${safe(wak)}')" class="text-${color} link-detail"><i class="bi bi-chat-left-text"></i> Log Detail</a>`:"";
+
+      hadirRows.forEach(p => {
+        const lariAda = p.stik_merah!==null||p.stik_kuning!==null||p.stik_hijau!==null||p.stik_biru!==null;
+        if (p.lolos_verifikasi==='Lolos' && lariAda && p.lolos_ketinggian && p.lolos_sempit) selesai++;
+
+        const pJson = JSON.stringify({ nomor_peserta:p.nomor_peserta, nik:p.nik, nama:p.nama, jenis_kelamin:p.jenis_kelamin, jalur:p.jalur, jurusan_1:p.jurusan_1, jurusan_2:p.jurusan_2, foto:p.foto }).replace(/"/g,'&quot;');
+
+        const makeBtnLog = (cat,pos,pan,wak,color) => (cat||pan)?`<a onclick="showDetail('${safe(p.nama)}','${pos}','${safe(cat)}','${safe(pan)}','${safe(wak)}')" class="text-${color} link-detail"><i class="bi bi-chat-left-text"></i> Log Detail</a>`:"";
+
+        const badgeLari = lariAda ? `<div class="d-flex justify-content-center flex-wrap gap-1" style="font-size:0.75rem;"><span class="badge bg-danger">M:${p.stik_merah??0}</span><span class="badge bg-warning text-dark">K:${p.stik_kuning??0}</span><span class="badge bg-success">H:${p.stik_hijau??0}</span><span class="badge bg-primary">B:${p.stik_biru??0}</span></div>` : `<span class="badge bg-secondary">Pending</span>`;
+
+        tbody.innerHTML += `<tr class="peserta-row">
+          <td class="fw-bold text-muted" style="font-size:0.7rem;">${p.nomor_peserta}</td>
+          <td><div class="fw-bold">${p.nama}</div><a onclick='showBiodata("${pJson}")' class="text-primary link-detail"><i class="bi bi-person-circle"></i> Detail Biodata</a></td>
+          <td>${vBadge(p.lolos_verifikasi)}${makeBtnLog(p.catatan_verifikasi,'Verifikasi',p.panitia_verifikator,fmt(p.timestamp_verifikasi),'primary')}</td>
+          <td class="text-center" style="min-width:150px;">${badgeLari}${makeBtnLog(p.catatan_lari,'Lari',p.panitia_lari,fmt(p.timestamp_lari),'primary')}</td>
+          <td class="text-center">${vBadge(p.lolos_ketinggian)}${makeBtnLog(p.catatan_ketinggian,'Ketinggian',p.panitia_ketinggian,fmt(p.timestamp_ketinggian),'info')}</td>
+          <td class="text-center">${vBadge(p.lolos_sempit)}${makeBtnLog(p.catatan_sempit,'Ruang Sempit',p.panitia_sempit,fmt(p.timestamp_sempit),'purple')}</td>
+          <td>${p.catatan_medis?`<span class="badge bg-danger">P3K</span>${makeBtnLog(p.catatan_medis,'Medis',p.panitia_medis,fmt(p.timestamp_medis),'danger')}`:'<span class="badge bg-success opacity-50">Aman</span>'}</td>
+        </tr>`;
+      });
+      document.getElementById("d-selesai-semua").innerText = selesai;
+    }
+
+    function filterTable() {
+      const input = document.getElementById("searchInput").value.toLowerCase();
+      document.querySelectorAll(".peserta-row").forEach(row => { row.style.display = row.textContent.toLowerCase().includes(input) ? "" : "none"; });
+    }
+
+    function exportCSV() {
+      if (!allData?.length) return Swal.fire({ icon:'warning', text:'Belum ada data.', confirmButtonColor:'#5b7cfa' });
+      const headers = ['Nomor Peserta','NIK','Nama','Jenis Kelamin','Jalur','Jurusan 1','Jurusan 2','Kehadiran','Timestamp Kehadiran','Lolos Verifikasi','Catatan Verifikasi','Panitia Verifikator','Timestamp Verifikasi','Lolos Ketinggian','Catatan Ketinggian','Panitia Ketinggian','Timestamp Ketinggian','Lolos Sempit','Catatan Sempit','Panitia Sempit','Timestamp Sempit','Stik Merah','Stik Kuning','Stik Hijau','Stik Biru','Catatan Lari','Panitia Lari','Timestamp Lari','Catatan Medis','Panitia Medis','Timestamp Medis'];
+      const esc = v => { const s = (v===null||v===undefined)?'':String(v); return s.match(/[,"\n]/)?`"${s.replace(/"/g,'""')}"`:s; };
+      const rows = allData.map(p => [p.nomor_peserta,p.nik,p.nama,p.jenis_kelamin,p.jalur,p.jurusan_1,p.jurusan_2,p.kehadiran?'Ya':'Tidak',fmt(p.timestamp_kehadiran),p.lolos_verifikasi,p.catatan_verifikasi,p.panitia_verifikator,fmt(p.timestamp_verifikasi),p.lolos_ketinggian,p.catatan_ketinggian,p.panitia_ketinggian,fmt(p.timestamp_ketinggian),p.lolos_sempit,p.catatan_sempit,p.panitia_sempit,fmt(p.timestamp_sempit),p.stik_merah,p.stik_kuning,p.stik_hijau,p.stik_biru,p.catatan_lari,p.panitia_lari,fmt(p.timestamp_lari),p.catatan_medis,p.panitia_medis,fmt(p.timestamp_medis)].map(esc).join(','));
+      const csv = [headers.map(esc).join(','), ...rows].join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' }));
+      a.download = `rekap-pmb-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      Swal.fire({ icon:'success', title:'Export Berhasil!', text:`${allData.length} baris diekspor.`, timer:2000, showConfirmButton:false, toast:true, position:'top-end' });
+    }
+  </script>
+</body>
+</html>
