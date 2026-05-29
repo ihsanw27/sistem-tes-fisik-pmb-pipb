@@ -249,9 +249,13 @@
   let userEmail = "";
 
   // ── AUTH ──────────────────────────────────────────
-  // Single source of truth: onAuthStateChange drives everything.
-  // getUser() is always server-validated (not just localStorage).
-  // Role is always fetched fresh from DB — never cached.
+  // 1. INITIAL_SESSION: fast-path with session.user, silent server re-check.
+  // 2. Dedup guard: INITIAL_SESSION + SIGNED_IN can both fire — only handle once.
+  // 3. 8s timeout on getUser() — never hangs, shows retry on failure.
+  // 4. Management: redirect to dashboard without signOut (session preserved).
+  // 5. Role always fetched fresh from DB.
+
+  let _authGuard = false;
 
   function setLoadingMsg(msg) {
     const el = document.getElementById("auth-loading-msg");
@@ -264,15 +268,32 @@
   }
 
   function showLogin() {
+    _authGuard = false;
     hideLoader();
     document.getElementById("view-login").classList.remove("hidden");
     document.getElementById("view-dashboard").classList.add("hidden");
   }
 
+  function showNetworkError() {
+    const el = document.getElementById("auth-loading");
+    if (el) el.innerHTML = `
+      <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:55px;margin-bottom:20px;object-fit:contain;" alt="">
+      <i class="bi bi-wifi-off" style="font-size:2.5rem;color:#94a3b8;"></i>
+      <p class="mt-3 fw-semibold" style="color:#64748b;">Koneksi bermasalah</p>
+      <p class="small text-muted mb-4">Tidak dapat menghubungi server.</p>
+      <button onclick="location.reload()" class="btn btn-primary px-4 rounded-pill fw-bold">Coba Lagi</button>`;
+  }
+
+  async function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+    ]);
+  }
+
   async function loginGoogle() {
     document.getElementById("l-text").innerText = "Mengarahkan...";
     document.getElementById("btn-login").disabled = true;
-    // Use origin+pathname only — never include hash/query from a prior redirect
     const cleanUrl = window.location.origin + window.location.pathname;
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
@@ -288,42 +309,55 @@
     }
   }
 
-  async function validateAndEnter(authUser) {
-    setLoadingMsg("Memvalidasi akses...");
+  async function validateAndEnter(authUser, skipServerCheck) {
+    if (!skipServerCheck) {
+      try {
+        const { data, error } = await withTimeout(sb.auth.getUser(), 8000);
+        if (error || !data?.user) { await sb.auth.signOut(); return; }
+        authUser = data.user;
+      } catch(e) {
+        if (e.message === 'timeout') { showNetworkError(); _authGuard = false; }
+        else { await sb.auth.signOut(); }
+        return;
+      }
+    }
+
     const email = authUser.email;
     const avatar = authUser.user_metadata?.avatar_url || '';
+    setLoadingMsg("Memuat data...");
 
-    // Always fetch role fresh from DB — no cache
-    const { data: panitia, error } = await sb.from('panitia')
+    const { data: panitia, error: dbErr } = await sb.from('panitia')
       .select('nama,penugasan,jabatan')
       .eq('email', email)
       .single();
 
-    if (error || !panitia) {
-      await sb.auth.signOut(); // triggers SIGNED_OUT → showLogin()
+    if (dbErr || !panitia) {
+      await sb.auth.signOut();
       Swal.fire({ icon:'error', title:'Akses Ditolak',
-        html: `Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
+        html:`Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
         confirmButtonColor:'#4f46e5' });
       return;
     }
 
-    // Block Management from this page
+    // Management: preserve session, just redirect — never signOut
     const rolesRaw = (panitia.penugasan || '').split(',').map(r => r.trim())
                      .filter(r => r.toLowerCase() !== 'management' && r !== '');
     if (rolesRaw.length === 0) {
-      await sb.auth.signOut();
-      Swal.fire({ icon:'warning', title:'Akses Terbatas',
-        html: `Akun <b>${panitia.nama}</b> hanya dapat mengakses Dashboard, bukan portal panitia.<br>
-               <a href="dashboard" class="btn btn-sm btn-primary mt-3 px-4 rounded-pill">Buka Dashboard</a>`,
-        showConfirmButton: false });
+      hideLoader();
+      Swal.fire({
+        icon:'info', title:'Akses Terbatas',
+        html:`<b>${panitia.nama}</b>, akun Anda tidak memiliki akses ke portal panitia.<br><br>
+              <a href="dashboard" class="btn btn-primary px-4 rounded-pill fw-bold text-decoration-none">
+                <i class="bi bi-speedometer2 me-1"></i>Buka Dashboard
+              </a>`,
+        showConfirmButton: false,
+        allowOutsideClick: false
+      });
       return;
     }
 
-    // Set globals (fresh data, never from cache)
     namaPanitiaLogin = panitia.nama;
     userEmail = email;
-
-    // Restore visual prefs only (bulk/mirror) from localStorage per-user
     const prefs = JSON.parse(localStorage.getItem(`pmbPrefs_${email}`) || '{}');
 
     hideLoader();
@@ -349,41 +383,55 @@
     if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
     qrScanner = new Html5Qrcode("reader"); initCam();
     if (intervalSync) clearInterval(intervalSync);
-    intervalSync = setInterval(() => { if (!document.getElementById("view-dashboard").classList.contains("hidden")) syncData(false); }, 60000);
+    intervalSync = setInterval(() => {
+      if (!document.getElementById("view-dashboard").classList.contains("hidden")) syncData(false);
+    }, 60000);
     checkDraftBanner();
+
+    // Silent background re-validation if fast-path was used
+    if (skipServerCheck) {
+      setTimeout(async () => {
+        try {
+          const { data, error } = await withTimeout(sb.auth.getUser(), 8000);
+          if (error || !data?.user) await sb.auth.signOut();
+        } catch(e) { /* offline — token refresh will handle it */ }
+      }, 0);
+    }
   }
 
   async function logout() {
     clearInterval(intervalSync);
     if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
-    await sb.auth.signOut(); // onAuthStateChange SIGNED_OUT fires → showLogin()
+    await sb.auth.signOut();
   }
 
-  // ── INIT — single entry point ──────────────────────
+  // ── INIT ────────────────────────────────────────────
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'INITIAL_SESSION') {
       if (!session) { showLogin(); return; }
-      // Validate server-side — getUser() makes a network call
-      setLoadingMsg("Memeriksa sesi...");
-      const { data: { user }, error } = await sb.auth.getUser();
-      if (error || !user) { await sb.auth.signOut(); return; }
-      await validateAndEnter(user);
+      if (_authGuard) return;
+      _authGuard = true;
+      setLoadingMsg(`Memuat — ${session.user.user_metadata?.name || session.user.email}...`);
+      await validateAndEnter(session.user, true); // fast-path, validate silently
+
     } else if (event === 'SIGNED_IN') {
-      // Fires after OAuth redirect
-      const { data: { user }, error } = await sb.auth.getUser();
-      if (error || !user) { await sb.auth.signOut(); return; }
-      await validateAndEnter(user);
+      if (_authGuard) return;
+      _authGuard = true;
+      setLoadingMsg("Memvalidasi akses...");
+      await validateAndEnter(session.user, false); // full validation after OAuth
+
     } else if (event === 'SIGNED_OUT') {
-      // Fires on logout, token expiry, or signOut() from another tab
       clearInterval(intervalSync);
+      if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
       bulkQueue = [];
       showLogin();
+
     } else if (event === 'TOKEN_REFRESHED') {
-      // Supabase auto-refreshed the token — nothing to do
+      _authGuard = false;
+
     } else if (event === 'USER_UPDATED') {
-      // Re-validate if user data changed
-      const { data: { user } } = await sb.auth.getUser();
-      if (user) await validateAndEnter(user);
+      _authGuard = false;
+      if (session?.user) await validateAndEnter(session.user, false);
     }
   });
 

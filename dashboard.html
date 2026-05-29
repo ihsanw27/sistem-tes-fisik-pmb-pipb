@@ -76,8 +76,13 @@
         <div class="text-end d-none d-md-block">
           <small class="text-muted d-block" style="font-size:0.65rem;">PANITIA LOGIN</small>
           <strong id="admin-nama" class="fs-6 text-primary">-</strong>
+          <small id="admin-role" class="d-block fw-semibold text-muted" style="font-size:0.65rem;margin-top:1px;"></small>
         </div>
         <img id="user-avatar" src="" class="user-avatar hidden" alt="">
+        <a href="panitia" id="btn-goto-panitia" class="hidden btn btn-light border shadow-sm d-flex align-items-center gap-2 px-3 py-2 fw-bold" style="border-radius:12px;font-size:0.8rem;color:var(--accent);text-decoration:none;" title="Buka portal panitia">
+          <i class="bi bi-qr-code-scan"></i>
+          <span class="d-none d-md-inline">Portal Panitia</span>
+        </a>
         <!-- Live toggle pill -->
         <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill border shadow-sm" style="background:#f8fafc; cursor:pointer;" onclick="toggleRealtime()" id="realtime-pill" title="Toggle live update">
           <span id="realtime-dot" class="rounded-circle d-inline-block" style="width:9px;height:9px;background:#94a3b8;transition:background 0.3s;"></span>
@@ -201,9 +206,15 @@
     }
 
     // ── AUTH ──────────────────────────────────────────
-    // onAuthStateChange is the single entry point.
-    // getUser() validates with server — not just localStorage.
-    // Role is always fetched fresh from DB — never cached.
+    // Design:
+    // 1. INITIAL_SESSION uses getSession() (local/instant) for fast UI,
+    //    then re-validates with getUser() (server) silently in background.
+    // 2. Dedup guard prevents double-fire from INITIAL_SESSION + SIGNED_IN.
+    // 3. 8s timeout on getUser() — shows retry on failure, never hangs.
+    // 4. Role fetch on every entry — never cached.
+    // 5. Management on this page → show dashboard directly (no signOut).
+
+    let _authGuard = false; // dedup: prevents INITIAL_SESSION + SIGNED_IN double-fire
 
     function setLoadingMsg(msg) {
       const el = document.getElementById("auth-loading-msg");
@@ -216,11 +227,27 @@
     }
 
     function showLogin() {
+      _authGuard = false;
       hideLoader();
-      const lw = document.getElementById("view-login");
-      const dw = document.getElementById("view-dashboard");
-      if (lw) lw.style.display = "";
-      if (dw) dw.classList.add("hidden");
+      document.getElementById("view-login").style.display = "";
+      document.getElementById("view-dashboard").classList.add("hidden");
+    }
+
+    function showNetworkError() {
+      const el = document.getElementById("auth-loading");
+      if (el) el.innerHTML = `
+        <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:55px;margin-bottom:20px;object-fit:contain;" alt="">
+        <i class="bi bi-wifi-off" style="font-size:2.5rem;color:#94a3b8;"></i>
+        <p class="mt-3 fw-semibold" style="color:#64748b;">Koneksi bermasalah</p>
+        <p class="small text-muted mb-4">Tidak dapat menghubungi server.</p>
+        <button onclick="location.reload()" class="btn btn-primary px-4 rounded-pill fw-bold">Coba Lagi</button>`;
+    }
+
+    async function withTimeout(promise, ms) {
+      return Promise.race([
+        promise,
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+      ]);
     }
 
     async function loginGoogle() {
@@ -241,21 +268,37 @@
       }
     }
 
-    async function validateAndEnter(authUser) {
-      setLoadingMsg("Memvalidasi akses...");
+    async function validateAndEnter(authUser, skipServerCheck) {
+      // skipServerCheck: true when called from INITIAL_SESSION fast-path
+      // In that case we proceed with session.user then re-validate silently
+      if (!skipServerCheck) {
+        // Full server validation with timeout
+        try {
+          const { data, error } = await withTimeout(sb.auth.getUser(), 8000);
+          if (error || !data?.user) { await sb.auth.signOut(); return; }
+          authUser = data.user; // use server-confirmed user
+        } catch(e) {
+          // Timeout or network error
+          if (e.message === 'timeout') { showNetworkError(); _authGuard = false; }
+          else { await sb.auth.signOut(); }
+          return;
+        }
+      }
+
       const email = authUser.email;
       const avatar = authUser.user_metadata?.avatar_url || '';
+      setLoadingMsg("Memuat data...");
 
-      // Fresh role from DB — no cache
-      const { data: panitia, error } = await sb.from('panitia')
+      // Role always fresh from DB
+      const { data: panitia, error: dbErr } = await sb.from('panitia')
         .select('nama,penugasan,jabatan')
         .eq('email', email)
         .single();
 
-      if (error || !panitia) {
+      if (dbErr || !panitia) {
         await sb.auth.signOut();
         Swal.fire({ icon:'error', title:'Akses Ditolak',
-          html: `Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
+          html:`Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
           confirmButtonColor:'#5b7cfa' });
         return;
       }
@@ -268,50 +311,66 @@
       document.getElementById("view-dashboard").classList.remove("hidden");
       document.getElementById("admin-nama").innerText = panitia.nama;
 
+      const roleEl = document.getElementById("admin-role");
+      if (roleEl) roleEl.innerText = penugasan;
+
       if (avatar) {
         const av = document.getElementById("user-avatar");
         av.src = avatar; av.classList.remove("hidden");
       }
 
-      // Role badge
-      const roleEl = document.getElementById("admin-role");
-      if (roleEl) roleEl.innerText = penugasan;
-
-      // Portal Panitia link — hidden for Management
+      // Portal Panitia button — hidden for Management only
       const linkBtn = document.getElementById("btn-goto-panitia");
       if (linkBtn) linkBtn.classList.toggle("hidden", isManagement);
 
       loadData();
       startRealtime();
+
+      // Silent background re-validation if we used fast-path
+      if (skipServerCheck) {
+        setTimeout(async () => {
+          try {
+            const { data, error } = await withTimeout(sb.auth.getUser(), 8000);
+            if (error || !data?.user) await sb.auth.signOut(); // session was invalid, kick out
+          } catch(e) { /* network offline — keep user in, they'll get kicked on next token refresh */ }
+        }, 0);
+      }
     }
 
     async function logout() {
       stopRealtime();
       clearInterval(liveInterval);
-      await sb.auth.signOut(); // triggers SIGNED_OUT → showLogin()
+      await sb.auth.signOut();
     }
 
-    // ── INIT — single entry point ────────────────────
+    // ── INIT ────────────────────────────────────────────
     sb.auth.onAuthStateChange(async (event, session) => {
       if (event === 'INITIAL_SESSION') {
         if (!session) { showLogin(); return; }
-        setLoadingMsg("Memeriksa sesi...");
-        const { data: { user }, error } = await sb.auth.getUser();
-        if (error || !user) { await sb.auth.signOut(); return; }
-        await validateAndEnter(user);
+        if (_authGuard) return; // SIGNED_IN will fire right after — let it handle
+        _authGuard = true;
+        setLoadingMsg(`Memuat — ${session.user.user_metadata?.name || session.user.email}...`);
+        // Fast path: use session.user immediately, validate server silently
+        await validateAndEnter(session.user, true);
+
       } else if (event === 'SIGNED_IN') {
-        const { data: { user }, error } = await sb.auth.getUser();
-        if (error || !user) { await sb.auth.signOut(); return; }
-        await validateAndEnter(user);
+        if (_authGuard) return; // already handled by INITIAL_SESSION
+        _authGuard = true;
+        setLoadingMsg("Memvalidasi akses...");
+        await validateAndEnter(session.user, false); // full validation after OAuth
+
       } else if (event === 'SIGNED_OUT') {
         stopRealtime();
         clearInterval(liveInterval);
         showLogin();
+
+      } else if (event === 'TOKEN_REFRESHED') {
+        _authGuard = false; // allow re-validation on next event if needed
+
       } else if (event === 'USER_UPDATED') {
-        const { data: { user } } = await sb.auth.getUser();
-        if (user) await validateAndEnter(user);
+        _authGuard = false;
+        if (session?.user) await validateAndEnter(session.user, false);
       }
-      // TOKEN_REFRESHED — silent, no action needed
     });
 
     // ── DATA ──────────────────────────────────────────
