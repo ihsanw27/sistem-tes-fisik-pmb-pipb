@@ -269,7 +269,6 @@
 
   function showLogin() {
     _authGuard = false;
-    if (fromCache) hideLoader(); // instant — no spinner shown at all
     hideLoader();
     document.getElementById("view-login").classList.remove("hidden");
     document.getElementById("view-dashboard").classList.add("hidden");
@@ -436,29 +435,50 @@
   }
 
   // ── INIT ────────────────────────────────────────────
+  // Strategy: getSession() reads localStorage instantly (no network) → 
+  // decide no-session/has-session before Supabase's internal token-refresh
+  // completes. onAuthStateChange only handles post-initial events.
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+
+    if (!session) {
+      // Definitely not logged in — show login immediately, no spinner
+      showLogin();
+    } else {
+      // Has a session in localStorage — enter immediately via fast-path
+      // Background: onAuthStateChange will validate the token server-side
+      if (!_authGuard) {
+        _authGuard = true;
+        setLoadingMsg(`Halo, ${session.user.user_metadata?.name || session.user.email}...`);
+        await validateAndEnter(session.user, true);
+      }
+    }
+  })();
+
+  // Handles: OAuth redirect (SIGNED_IN), cross-tab logout (SIGNED_OUT),
+  // token expiry, user updates. NOT used for initial page load.
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'INITIAL_SESSION') {
-      if (!session) { showLogin(); return; }
-      if (_authGuard) return;
-      _authGuard = true;
-      setLoadingMsg(`Memuat — ${session.user.user_metadata?.name || session.user.email}...`);
-      await validateAndEnter(session.user, true); // fast-path, validate silently
+      // Already handled above by getSession() — ignore
+      return;
 
     } else if (event === 'SIGNED_IN') {
+      // Only fires after OAuth redirect — full server validation
       if (_authGuard) return;
       _authGuard = true;
       setLoadingMsg("Memvalidasi akses...");
-      await validateAndEnter(session.user, false); // full validation after OAuth
+      await validateAndEnter(session.user, false);
 
     } else if (event === 'SIGNED_OUT') {
-      // Clear role cache so next login always fetches fresh from DB
       try { Object.keys(localStorage).filter(k => k.startsWith('pmbRole_')).forEach(k => localStorage.removeItem(k)); } catch {}
+      _authGuard = false;
       clearInterval(intervalSync);
       if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
       bulkQueue = [];
       showLogin();
 
     } else if (event === 'TOKEN_REFRESHED') {
+      // Token silently refreshed — reset guard so USER_UPDATED can re-validate
       _authGuard = false;
 
     } else if (event === 'USER_UPDATED') {
