@@ -287,20 +287,42 @@
 
       const email = authUser.email;
       const avatar = authUser.user_metadata?.avatar_url || '';
-      setLoadingMsg("Memuat data...");
 
-      // Role always fresh from DB
-      const { data: panitia, error: dbErr } = await sb.from('panitia')
-        .select('nama,penugasan,jabatan')
-        .eq('email', email)
-        .single();
+      const ROLE_CACHE_KEY = `pmbRole_${email}`;
+      const ROLE_TTL_MS = 60 * 60 * 1000;
 
-      if (dbErr || !panitia) {
-        await sb.auth.signOut();
-        Swal.fire({ icon:'error', title:'Akses Ditolak',
-          html:`Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
-          confirmButtonColor:'#5b7cfa' });
-        return;
+      function getRoleCache() {
+        try {
+          const raw = localStorage.getItem(ROLE_CACHE_KEY);
+          if (!raw) return null;
+          const obj = JSON.parse(raw);
+          if (Date.now() - obj.ts > ROLE_TTL_MS) { localStorage.removeItem(ROLE_CACHE_KEY); return null; }
+          return obj.data;
+        } catch { return null; }
+      }
+
+      function setRoleCache(data) {
+        try { localStorage.setItem(ROLE_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch {}
+      }
+
+      let panitia = skipServerCheck ? getRoleCache() : null;
+      const fromCache = !!panitia;
+
+      if (!panitia) {
+        setLoadingMsg("Memuat data...");
+        const { data, error: dbErr } = await sb.from('panitia')
+          .select('nama,penugasan,jabatan')
+          .eq('email', email)
+          .single();
+        if (dbErr || !data) {
+          await sb.auth.signOut();
+          Swal.fire({ icon:'error', title:'Akses Ditolak',
+            html:`Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
+            confirmButtonColor:'#5b7cfa' });
+          return;
+        }
+        panitia = data;
+        setRoleCache(panitia);
       }
 
       const penugasan = panitia.penugasan || '';
@@ -326,13 +348,18 @@
       loadData();
       startRealtime();
 
-      // Silent background re-validation if we used fast-path
+      // Silent background: re-validate token + refresh role cache if stale
       if (skipServerCheck) {
         setTimeout(async () => {
           try {
             const { data, error } = await withTimeout(sb.auth.getUser(), 8000);
-            if (error || !data?.user) await sb.auth.signOut(); // session was invalid, kick out
-          } catch(e) { /* network offline — keep user in, they'll get kicked on next token refresh */ }
+            if (error || !data?.user) { await sb.auth.signOut(); return; }
+            if (fromCache) {
+              const { data: fresh } = await sb.from('panitia')
+                .select('nama,penugasan,jabatan').eq('email', email).single();
+              if (fresh) setRoleCache(fresh);
+            }
+          } catch(e) {}
         }, 0);
       }
     }
@@ -360,6 +387,7 @@
         await validateAndEnter(session.user, false); // full validation after OAuth
 
       } else if (event === 'SIGNED_OUT') {
+        try { Object.keys(localStorage).filter(k => k.startsWith('pmbRole_')).forEach(k => localStorage.removeItem(k)); } catch {}
         stopRealtime();
         clearInterval(liveInterval);
         showLogin();
