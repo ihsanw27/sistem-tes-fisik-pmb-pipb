@@ -40,6 +40,11 @@
     .bulk-item-header { font-size: 0.9rem; color: var(--accent); font-weight: 700; margin-bottom: 12px; border-bottom: 1px dashed var(--border-soft); padding-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
     .badge-progress { font-size: 0.65rem; border-radius: 6px; padding: 4px 6px; display: inline-flex; align-items: center; gap: 3px; font-weight: 600; }
     .user-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-soft); }
+    .draft-filled { border-color: #86efac !important; background: #f0fdf4 !important; }
+    .draft-filled .bulk-item-header { color: #16a34a !important; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin 0.9s linear infinite; }
+    .save-chip { font-size: 0.7rem; font-weight: 600; transition: color 0.3s; }
   </style>
 </head>
 <body>
@@ -121,16 +126,18 @@
         </div>
 
         <!-- Draft restore banner -->
-        <div id="draft-banner" class="hidden rounded-4 p-3 mb-3 shadow-sm fade-in" style="background: #fffbeb; border: 1.5px solid #f59e0b;">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div>
-              <div class="fw-bold small mb-1" style="color: #b45309;"><i class="bi bi-clock-history me-1"></i> Draft Tersimpan</div>
-              <div id="draft-banner-info" class="small text-muted" style="font-size: 0.75rem;"></div>
+        <div id="draft-banner" class="hidden rounded-4 p-0 mb-3 shadow-sm fade-in" style="background:#fffbeb; border:1.5px solid #f59e0b; overflow:hidden;">
+          <div class="px-3 pt-3 pb-2 d-flex justify-content-between align-items-start gap-2">
+            <div class="fw-bold small" style="color:#b45309;">
+              <i class="bi bi-floppy-fill me-1"></i> Draft Antrean Tersimpan
             </div>
-            <div class="d-flex gap-2 flex-shrink-0">
-              <button onclick="restoreDraft()" class="btn btn-sm fw-bold px-3 rounded-pill shadow-sm" style="background:#f59e0b; color:white; border:none;">Pulihkan</button>
-              <button onclick="clearDraft(true)" class="btn btn-sm fw-bold px-2 rounded-pill" style="background:white; border:1.5px solid #f59e0b; color:#b45309;"><i class="bi bi-x"></i></button>
-            </div>
+            <button onclick="clearDraft(true)" class="btn btn-sm p-0 lh-1" style="color:#b45309; background:none; border:none; font-size:1.1rem;" title="Hapus draft"><i class="bi bi-x-circle"></i></button>
+          </div>
+          <div id="draft-banner-info" class="px-3 pb-2" style="font-size:0.78rem;"></div>
+          <div class="px-3 pb-3">
+            <button onclick="restoreDraft()" class="btn fw-bold w-100 rounded-3 py-2" style="background:#f59e0b; color:white; border:none; font-size:0.85rem;">
+              <i class="bi bi-arrow-counterclockwise me-1"></i> Pulihkan & Lanjutkan Pengisian
+            </button>
           </div>
         </div>
       </div>
@@ -187,13 +194,29 @@
 
       <!-- Form bulk -->
       <div id="form-nilai-bulk" class="hidden">
-        <div class="alert mb-3 py-3 rounded-4 border-0 text-center shadow-sm" style="background: var(--accent-soft); color: var(--accent);">
-          <h6 class="fw-bold mb-0"><i class="bi bi-stack me-1"></i> DAFTAR ANTREAN: <span id="bulk-total-header" class="badge bg-primary rounded-pill fs-6 ms-1">0</span> PESERTA</h6>
+        <div class="rounded-4 border-0 p-3 mb-3 shadow-sm d-flex justify-content-between align-items-center" style="background: var(--accent-soft); color: var(--accent);">
+          <h6 class="fw-bold mb-0"><i class="bi bi-stack me-1"></i> ANTREAN: <span id="bulk-total-header" class="badge bg-primary rounded-pill fs-6 ms-1">0</span> PESERTA</h6>
+          <span id="draft-save-chip" class="save-chip"></span>
         </div>
         <div id="bulk-table-container" class="mb-3"></div>
-        <div class="row g-2 mt-auto border-top pt-3">
-          <div class="col-4"><button onclick="batal()" class="btn btn-light btn-custom w-100 border text-muted shadow-sm">Batal</button></div>
-          <div class="col-8"><button onclick="simpanBulk()" class="btn fw-bold btn-custom w-100 text-white" id="btn-simpan-bulk" style="background: var(--accent);"><i class="bi bi-cloud-arrow-up-fill me-1"></i> UPLOAD SEMUA</button></div>
+        <div class="border-top pt-3 mt-auto">
+          <div class="row g-2 mb-2">
+            <div class="col-5">
+              <button onclick="batalDariBulk()" class="btn btn-light btn-custom w-100 border text-muted shadow-sm" title="Kembali ke scanner untuk tambah peserta">
+                <i class="bi bi-arrow-left"></i> Tambah Peserta
+              </button>
+            </div>
+            <div class="col-7">
+              <button onclick="simpanBulk()" class="btn fw-bold btn-custom w-100 text-white" id="btn-simpan-bulk" style="background: var(--accent);">
+                <i class="bi bi-cloud-arrow-up-fill me-1"></i> UPLOAD SEMUA
+              </button>
+            </div>
+          </div>
+          <div class="text-center">
+            <button onclick="batalSemuaFromBulk()" class="btn btn-link btn-sm text-danger text-decoration-none fw-bold" style="font-size:0.75rem;">
+              <i class="bi bi-trash3 me-1"></i>Batalkan & Hapus Semua
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -204,8 +227,8 @@
   // =============================================
   // KONFIGURASI — ganti dengan URL & key Anda
   // =============================================
-  const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
+  const SUPABASE_URL = "https://XXXXXXXXXXXXXX.supabase.co";
+  const SUPABASE_KEY = "SUPABASE_ANON_KEY_ANDA";
 
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -213,6 +236,7 @@
   let qrScanner, activeNo = "", pesertaList = [], intervalSync;
   let isBulkMode = false, bulkQueue = [], isScanningPaused = false, currentRole = "";
   let namaPanitiaLogin = "";
+  let userEmail = "";
 
   // ── AUTH ──────────────────────────────────────────
   async function loginGoogle() {
@@ -255,7 +279,7 @@
     // Store session info
     namaPanitiaLogin = rows.nama;
     const roles = rows.penugasan || '';
-    sessionStorage.setItem("pmbSess", JSON.stringify({ nama: rows.nama, roles, bulkMode: false, mirrorMode: false, avatar }));
+    sessionStorage.setItem("pmbSess", JSON.stringify({ nama: rows.nama, roles, bulkMode: false, mirrorMode: false, avatar, email }));
     restoreSess();
   }
 
@@ -283,6 +307,7 @@
 
   async function restoreSess() {
     let sess = JSON.parse(sessionStorage.getItem("pmbSess"));
+    userEmail = sess.email || '';   // set per-user draft key
     document.getElementById("view-login").classList.add("hidden");
     document.getElementById("view-dashboard").classList.remove("hidden");
     document.getElementById("nama-panitia").innerText = sess.nama;
@@ -404,14 +429,35 @@
   }
 
   // ── DRAFT MEMORY ─────────────────────────────────
-  const DRAFT_KEY = 'pmbBulkDraft';
+  // Per-user key → two panitia on same device never clash
+  const DRAFT_KEY = () => `pmbDraft_${userEmail || 'anon'}`;
+  let draftSaveTimer = null;
 
+  // Check if a queue item already has values entered
+  function hasFilledValues(p) {
+    return (p.tempM !== undefined && p.tempM !== '') ||
+           (p.tempVal !== undefined && p.tempVal !== '') ||
+           (p.tempCat !== undefined && p.tempCat !== '');
+  }
+
+  // Debounced save — 800ms after last call (for oninput events)
   function saveDraft() {
-    if (bulkQueue.length === 0) { clearDraft(false); return; }
-    const t = (document.getElementById("pilih-tugas").value || "");
+    updateSaveStatus('saving');
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(() => saveDraftImmediate(), 800);
+  }
+
+  // Immediate save — use before navigation, tab switch, beforeunload
+  function saveDraftImmediate() {
+    clearTimeout(draftSaveTimer);
+    if (bulkQueue.length === 0) { clearDraft(false); updateSaveStatus('clear'); return; }
+    const t = document.getElementById("pilih-tugas").value || "";
     harvestFormValues();
-    const draft = { queue: bulkQueue, tugas: t, savedAt: new Date().toISOString() };
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    const draft = { queue: bulkQueue, tugas: t, savedAt: new Date().toISOString(), user: userEmail };
+    try {
+      localStorage.setItem(DRAFT_KEY(), JSON.stringify(draft));
+      updateSaveStatus('saved');
+    } catch(e) { updateSaveStatus('error'); }
   }
 
   function harvestFormValues() {
@@ -434,52 +480,155 @@
     });
   }
 
-  function clearDraft(showBanner) {
-    sessionStorage.removeItem(DRAFT_KEY);
-    if (showBanner !== false) checkDraftBanner();
+  function updateSaveStatus(state) {
+    const chip = document.getElementById("draft-save-chip");
+    if (!chip) return;
+    const now = new Date().toLocaleTimeString("id-ID", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+    if (state === 'saving') {
+      chip.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> Menyimpan...`;
+      chip.style.color = "#94a3b8";
+    } else if (state === 'saved') {
+      chip.innerHTML = `<i class="bi bi-floppy-fill"></i> ${now}`;
+      chip.style.color = "#10b981";
+    } else if (state === 'error') {
+      chip.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Gagal`;
+      chip.style.color = "#ef4444";
+    } else {
+      chip.innerHTML = '';
+    }
+  }
+
+  function clearDraft(askConfirm) {
+    if (askConfirm) {
+      Swal.fire({
+        icon:'warning', title:'Hapus Draft?',
+        text:'Semua data antrean yang tersimpan akan dihapus permanen.',
+        showCancelButton:true, confirmButtonColor:'#ef4444',
+        confirmButtonText:'Ya, Hapus', cancelButtonText:'Batal'
+      }).then(r => {
+        if (r.isConfirmed) {
+          localStorage.removeItem(DRAFT_KEY());
+          checkDraftBanner(); updateSaveStatus('clear');
+        }
+      });
+    } else {
+      localStorage.removeItem(DRAFT_KEY());
+      checkDraftBanner(); updateSaveStatus('clear');
+    }
   }
 
   function checkDraftBanner() {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(DRAFT_KEY());
     const banner = document.getElementById("draft-banner");
     if (!banner) return;
     if (!raw) { banner.classList.add("hidden"); return; }
     try {
       const draft = JSON.parse(raw);
       if (!draft.queue || draft.queue.length === 0) { banner.classList.add("hidden"); return; }
-      const t = new Date(draft.savedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-      document.getElementById("draft-banner-info").innerHTML =
-        `<b>${draft.queue.length} peserta</b> dari pos <b>${draft.tugas}</b> — disimpan pukul ${t}`;
+
+      const ageHours = (Date.now() - new Date(draft.savedAt).getTime()) / 3600000;
+      const timeStr = new Date(draft.savedAt).toLocaleTimeString("id-ID", { hour:"2-digit", minute:"2-digit" });
+      const filledCount = draft.queue.filter(p => hasFilledValues(p)).length;
+      const names = draft.queue.slice(0, 3).map(p => p.nama.split(' ')[0]).join(', ')
+                  + (draft.queue.length > 3 ? ` +${draft.queue.length - 3} lagi` : '');
+
+      const stale = ageHours > 6
+        ? `<div class="mt-2 d-flex align-items-center gap-1 fw-bold rounded-2 px-2 py-1" style="background:#fef2f2;color:#ef4444;font-size:0.7rem;"><i class="bi bi-exclamation-triangle-fill"></i> Draft >6 jam — mungkin sudah tidak relevan</div>`
+        : '';
+
+      document.getElementById("draft-banner-info").innerHTML = `
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+          <span class="badge rounded-pill fw-bold" style="background:#fde68a;color:#92400e;">${draft.queue.length} Peserta</span>
+          <span class="badge rounded-pill fw-bold" style="background:#ddd6fe;color:#4c1d95;">Pos: ${draft.tugas}</span>
+          ${filledCount > 0 ? `<span class="badge rounded-pill fw-bold" style="background:#d1fae5;color:#065f46;"><i class="bi bi-check-circle-fill me-1"></i>${filledCount} sudah diisi</span>` : ''}
+        </div>
+        <div class="text-muted" style="font-size:0.72rem;">${names}</div>
+        <div class="text-muted mt-1" style="font-size:0.7rem;"><i class="bi bi-clock me-1"></i>Disimpan pukul ${timeStr}</div>
+        ${stale}`;
       banner.classList.remove("hidden");
     } catch { banner.classList.add("hidden"); }
   }
 
   function restoreDraft() {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(DRAFT_KEY());
     if (!raw) return;
     try {
       const draft = JSON.parse(raw);
       bulkQueue = draft.queue;
+      // Restore tugas dropdown
       const sel = document.getElementById("pilih-tugas");
       if ([...sel.options].some(o => o.value === draft.tugas)) sel.value = draft.tugas;
+      currentRole = sel.value;
+      // Enable bulk mode
       if (!isBulkMode) {
         isBulkMode = true;
         document.getElementById("mode-bulk").checked = true;
         document.getElementById("bulk-info").classList.remove("hidden");
       }
-      renderBulkUI();
-      clearDraft(false);
+      localStorage.removeItem(DRAFT_KEY()); // now it lives in memory (bulkQueue)
       checkDraftBanner();
+      renderBulkUI();
       mulaiInputBulk();
-      Swal.fire({ icon:"success", title:"Draft Dipulihkan!", text:`${bulkQueue.length} peserta berhasil dimuat kembali.`, timer:1800, showConfirmButton:false, toast:true, position:"top" });
-    } catch(e) { clearDraft(true); }
+      Swal.fire({ icon:"success", title:"Draft Dipulihkan!", text:`${bulkQueue.length} peserta dimuat. Data yang sudah diisi sebelumnya otomatis terisi kembali.`, timer:2500, showConfirmButton:false, toast:true, position:"top" });
+    } catch(e) { clearDraft(false); }
   }
+
+  // Go back to scanner from bulk form to add more people
+  function batalDariBulk() {
+    saveDraftImmediate(); // harvest and persist right now before navigating
+    activeNo = "";
+    document.getElementById("form-nilai-bulk").classList.add("hidden");
+    document.getElementById("area-scanner").classList.remove("hidden");
+    checkDraftBanner();
+    // Do NOT reset bulk mode or clear queue — just go back to scanner
+    if (qrScanner) { try { qrScanner.stop(); } catch(e) {} }
+    qrScanner = new Html5Qrcode("reader"); initCam();
+  }
+
+  // Nuclear option — discard everything
+  async function batalSemuaFromBulk() {
+    const result = await Swal.fire({
+      icon:'warning', title:'Batalkan Semua?',
+      html:`<b>${bulkQueue.length} peserta</b> dan semua nilai yang sudah diisi akan dihapus permanen.`,
+      showCancelButton:true, confirmButtonColor:'#ef4444',
+      confirmButtonText:'Ya, Hapus Semua', cancelButtonText:'Tidak'
+    });
+    if (result.isConfirmed) {
+      bulkQueue = [];
+      clearDraft(false);
+      renderBulkUI();
+      batal();
+    }
+  }
+
+  // Tab/window protection
+  window.addEventListener('beforeunload', (e) => {
+    if (bulkQueue.length > 0) {
+      saveDraftImmediate();
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  // Auto-harvest when tab goes to background
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && bulkQueue.length > 0) saveDraftImmediate();
+  });
 
   function renderBulkUI() {
     document.getElementById("bulk-count").innerText = bulkQueue.length;
     let ul = document.getElementById("bulk-list"); ul.innerHTML = "";
-    bulkQueue.forEach((p, idx) => { ul.innerHTML += `<li class="d-flex justify-content-between align-items-center mb-1 py-1 border-bottom border-light"><span class="fw-medium"><b>${idx+1}.</b> ${p.nama} <small class="text-muted">(${p.no})</small></span><i class="bi bi-x-circle-fill text-danger fs-5" style="cursor:pointer;" onclick="hapusBulk(${idx})"></i></li>`; });
-    saveDraft();
+    bulkQueue.forEach((p, idx) => {
+      const filled = hasFilledValues(p);
+      ul.innerHTML += `<li class="d-flex justify-content-between align-items-center mb-1 py-1 border-bottom border-light">
+        <span class="fw-medium">
+          <b>${idx+1}.</b> ${p.nama} <small class="text-muted">(${p.no})</small>
+          ${filled ? '<i class="bi bi-check-circle-fill text-success ms-1" style="font-size:0.75rem;" title="Nilai sudah diisi di draft"></i>' : ''}
+        </span>
+        <i class="bi bi-x-circle-fill text-danger fs-5" style="cursor:pointer;" onclick="hapusBulk(${idx})"></i>
+      </li>`;
+    });
+    saveDraft(); // debounced — safe to call on every queue change
   }
 
   function hapusBulk(idx) { bulkQueue.splice(idx, 1); renderBulkUI(); }
@@ -605,7 +754,11 @@
         let isLolos = p.tempVal === "Lolos", isGagal = p.tempVal === "Tidak Lolos";
         inputHTML = `<select id="bulk-status-${idx}" class="form-select form-select-sm fw-bold mb-2 shadow-sm ${isLolos?'text-success border-success':isGagal?'text-danger border-danger':'text-muted'}" onchange="this.className='form-select form-select-sm fw-bold mb-2 shadow-sm '+(this.value==='Lolos'?'text-success border-success':'text-danger border-danger');saveDraft()"><option value="" ${!isLolos&&!isGagal?'selected':''} disabled>-- Pilih Status --</option><option value="Lolos" class="text-success fw-bold" ${isLolos?'selected':''}>✔ LOLOS</option><option value="Tidak Lolos" class="text-danger fw-bold" ${isGagal?'selected':''}>✖ TIDAK LOLOS</option></select>`;
       }
-      container.innerHTML += `<div class="bulk-item-card"><div class="bulk-item-header"><span>${idx+1}. ${p.nama}</span><span class="text-muted fw-normal" style="font-size:0.75rem;">No: ${p.no.toUpperCase()}</span>${generateProgressHTML(p)}</div>${historyHTML}${inputHTML}<textarea id="bulk-cat-${idx}" oninput="saveDraft()" class="form-control form-control-sm border-0 shadow-sm bg-light" rows="2" placeholder="${isKesehatan?'Detail keluhan medis...':'Catatan tambahan...'}">${savedCat}</textarea></div>`;
+      const hasFilled = hasFilledValues(p);
+      const restoredBadge = hasFilled
+        ? `<div class="d-inline-flex align-items-center gap-1 mb-2 px-2 py-1 rounded-2 fw-bold" style="background:#d1fae5;color:#065f46;font-size:0.65rem;"><i class="bi bi-floppy-fill"></i> Nilai dipulihkan dari draft</div>`
+        : '';
+      container.innerHTML += `<div class="bulk-item-card${hasFilled?' draft-filled':''}"><div class="bulk-item-header"><span>${idx+1}. ${p.nama}</span><span class="fw-normal" style="font-size:0.75rem;opacity:0.7;">No: ${p.no.toUpperCase()}</span>${generateProgressHTML(p)}</div>${restoredBadge}${historyHTML}${inputHTML}<textarea id="bulk-cat-${idx}" oninput="saveDraft()" class="form-control form-control-sm border-0 shadow-sm bg-light" rows="2" placeholder="${isKesehatan?'Detail keluhan medis...':'Catatan tambahan...'}">${savedCat}</textarea></div>`;
     });
 
     document.getElementById("area-scanner").classList.add("hidden");
@@ -679,19 +832,19 @@
     for (let u of updates) { try { await sbPatch('peserta','nomor_peserta',u.no,u.payload); } catch(e) { gagal++; } }
     await syncData(false);
     Swal.fire({ icon: gagal===0?'success':'warning', title: `${updates.length-gagal} berhasil${gagal>0?`, ${gagal} gagal`:'!'}`, timer:2000, showConfirmButton:false });
-    bulkQueue = []; clearDraft(false); renderBulkUI(); batal();
+    bulkQueue = []; clearDraft(false); updateSaveStatus('clear'); renderBulkUI(); batal();
     btnBulk.disabled = false; btnBulk.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i> UPLOAD SEMUA`;
   }
 
   function batal() {
-    // Save form values into bulkQueue before hiding, so draft is up to date
-    if (bulkQueue.length > 0) saveDraft();
+    if (bulkQueue.length > 0) saveDraftImmediate(); // immediate — no debounce on navigate
     activeNo = "";
     document.getElementById("form-nilai-single").classList.add("hidden");
     document.getElementById("form-nilai-bulk").classList.add("hidden");
     document.getElementById("area-scanner").classList.remove("hidden");
     checkDraftBanner();
     resetUI();
+    if (qrScanner) { try { qrScanner.stop(); } catch(e) {} }
     qrScanner = new Html5Qrcode("reader"); initCam();
   }
 </script>
