@@ -40,8 +40,15 @@
 </head>
 <body>
 
+  <!-- Auth loading overlay -->
+  <div id="auth-loading" style="position:fixed;inset:0;background:#e8eef2;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
+    <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
+    <div class="spinner-border text-primary" style="width:2.5rem;height:2.5rem;" role="status"></div>
+    <p class="mt-3 fw-semibold text-muted small" id="auth-loading-msg">Memeriksa sesi...</p>
+  </div>
+
   <!-- LOGIN -->
-  <div id="view-login" class="login-wrapper fade-in">
+  <div id="view-login" class="login-wrapper fade-in" style="display:none;">
     <div class="card-login">
       <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo" class="campus-logo">
       <h4 class="fw-bold mb-1">Portal Dashboard</h4>
@@ -179,8 +186,8 @@
   </div>
 
   <script>
-    const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
+    const SUPABASE_URL = "https://XXXXXXXXXXXXXX.supabase.co";
+    const SUPABASE_KEY = "SUPABASE_ANON_KEY_ANDA";
 
     const { createClient } = supabase;
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -194,13 +201,36 @@
     }
 
     // ── AUTH ──────────────────────────────────────────
+    // onAuthStateChange is the single entry point.
+    // getUser() validates with server — not just localStorage.
+    // Role is always fetched fresh from DB — never cached.
+
+    function setLoadingMsg(msg) {
+      const el = document.getElementById("auth-loading-msg");
+      if (el) el.innerText = msg;
+    }
+
+    function hideLoader() {
+      const el = document.getElementById("auth-loading");
+      if (el) el.style.display = "none";
+    }
+
+    function showLogin() {
+      hideLoader();
+      const lw = document.getElementById("view-login");
+      const dw = document.getElementById("view-dashboard");
+      if (lw) lw.style.display = "";
+      if (dw) dw.classList.add("hidden");
+    }
+
     async function loginGoogle() {
       document.getElementById("l-text").innerText = "Mengarahkan...";
       document.getElementById("btn-login").disabled = true;
+      const cleanUrl = window.location.origin + window.location.pathname;
       const { error } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.href,
+          redirectTo: cleanUrl,
           queryParams: { hd: 'poltek-petrokimia.ac.id' }
         }
       });
@@ -211,61 +241,78 @@
       }
     }
 
-    async function checkSession() {
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session) return;
+    async function validateAndEnter(authUser) {
+      setLoadingMsg("Memvalidasi akses...");
+      const email = authUser.email;
+      const avatar = authUser.user_metadata?.avatar_url || '';
 
-      const email = session.user.email;
-      const avatar = session.user.user_metadata?.avatar_url || '';
-      const { data: rows, error } = await sb.from('panitia').select('nama,penugasan').eq('email', email).single();
+      // Fresh role from DB — no cache
+      const { data: panitia, error } = await sb.from('panitia')
+        .select('nama,penugasan,jabatan')
+        .eq('email', email)
+        .single();
 
-      if (error || !rows) {
+      if (error || !panitia) {
         await sb.auth.signOut();
-        return Swal.fire({ icon:'error', title:'Akses Ditolak', text:`Akun ${email} tidak terdaftar sebagai panitia.`, confirmButtonColor:'#5b7cfa' });
+        Swal.fire({ icon:'error', title:'Akses Ditolak',
+          html: `Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
+          confirmButtonColor:'#5b7cfa' });
+        return;
       }
 
-      sessionStorage.setItem("dashSess", JSON.stringify({ nama: rows.nama, avatar, penugasan: rows.penugasan || '' }));
-      restoreSession(rows.nama, avatar, rows.penugasan || '');
-    }
+      const penugasan = panitia.penugasan || '';
+      const isManagement = penugasan.toLowerCase().includes('management') || penugasan.trim() === '';
 
-    async function logout() {
-      stopRealtime();
-      await sb.auth.signOut();
-      sessionStorage.removeItem("dashSess");
-      clearInterval(liveInterval);
-      location.reload();
-    }
-
-    window.onload = async () => {
-      const { data: { session } } = await sb.auth.getSession();
-      const cached = sessionStorage.getItem("dashSess");
-      if (session && cached) {
-        const s = JSON.parse(cached);
-        restoreSession(s.nama, s.avatar, s.penugasan || '');
-      } else if (session) {
-        await checkSession();
-      }
-    };
-
-    function restoreSession(nama, avatar, penugasan) {
-      document.getElementById("view-login").classList.add("hidden");
+      hideLoader();
+      document.getElementById("view-login").style.display = "none";
       document.getElementById("view-dashboard").classList.remove("hidden");
-      document.getElementById("admin-nama").innerText = nama;
-      if (avatar) { const av = document.getElementById("user-avatar"); av.src = avatar; av.classList.remove("hidden"); }
+      document.getElementById("admin-nama").innerText = panitia.nama;
 
-      // Show role badge next to name
+      if (avatar) {
+        const av = document.getElementById("user-avatar");
+        av.src = avatar; av.classList.remove("hidden");
+      }
+
+      // Role badge
       const roleEl = document.getElementById("admin-role");
-      if (roleEl) roleEl.innerText = penugasan || '';
+      if (roleEl) roleEl.innerText = penugasan;
 
-      // Show "→ Portal Panitia" button only for non-Management
-      const isManagement = (penugasan || '').toLowerCase().includes('management') ||
-                           (penugasan || '').trim() === '';
+      // Portal Panitia link — hidden for Management
       const linkBtn = document.getElementById("btn-goto-panitia");
       if (linkBtn) linkBtn.classList.toggle("hidden", isManagement);
 
       loadData();
       startRealtime();
     }
+
+    async function logout() {
+      stopRealtime();
+      clearInterval(liveInterval);
+      await sb.auth.signOut(); // triggers SIGNED_OUT → showLogin()
+    }
+
+    // ── INIT — single entry point ────────────────────
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'INITIAL_SESSION') {
+        if (!session) { showLogin(); return; }
+        setLoadingMsg("Memeriksa sesi...");
+        const { data: { user }, error } = await sb.auth.getUser();
+        if (error || !user) { await sb.auth.signOut(); return; }
+        await validateAndEnter(user);
+      } else if (event === 'SIGNED_IN') {
+        const { data: { user }, error } = await sb.auth.getUser();
+        if (error || !user) { await sb.auth.signOut(); return; }
+        await validateAndEnter(user);
+      } else if (event === 'SIGNED_OUT') {
+        stopRealtime();
+        clearInterval(liveInterval);
+        showLogin();
+      } else if (event === 'USER_UPDATED') {
+        const { data: { user } } = await sb.auth.getUser();
+        if (user) await validateAndEnter(user);
+      }
+      // TOKEN_REFRESHED — silent, no action needed
+    });
 
     // ── DATA ──────────────────────────────────────────
     async function loadData(showToast = true) {

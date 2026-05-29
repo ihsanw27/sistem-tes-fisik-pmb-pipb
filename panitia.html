@@ -48,6 +48,13 @@
   </style>
 </head>
 <body>
+<!-- Auth loading overlay -->
+<div id="auth-loading" style="position:fixed;inset:0;background:#f1f5f9;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
+  <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
+  <div class="spinner-border text-primary" style="width:2.5rem;height:2.5rem;" role="status"></div>
+  <p class="mt-3 fw-semibold text-muted small" id="auth-loading-msg">Memeriksa sesi...</p>
+</div>
+
 <div class="app-container">
 
   <!-- LOGIN -->
@@ -230,8 +237,8 @@
   // =============================================
   // KONFIGURASI — ganti dengan URL & key Anda
   // =============================================
-  const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
+  const SUPABASE_URL = "https://XXXXXXXXXXXXXX.supabase.co";
+  const SUPABASE_KEY = "SUPABASE_ANON_KEY_ANDA";
 
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -242,104 +249,143 @@
   let userEmail = "";
 
   // ── AUTH ──────────────────────────────────────────
+  // Single source of truth: onAuthStateChange drives everything.
+  // getUser() is always server-validated (not just localStorage).
+  // Role is always fetched fresh from DB — never cached.
+
+  function setLoadingMsg(msg) {
+    const el = document.getElementById("auth-loading-msg");
+    if (el) el.innerText = msg;
+  }
+
+  function hideLoader() {
+    const el = document.getElementById("auth-loading");
+    if (el) el.style.display = "none";
+  }
+
+  function showLogin() {
+    hideLoader();
+    document.getElementById("view-login").classList.remove("hidden");
+    document.getElementById("view-dashboard").classList.add("hidden");
+  }
+
   async function loginGoogle() {
     document.getElementById("l-text").innerText = "Mengarahkan...";
     document.getElementById("btn-login").disabled = true;
+    // Use origin+pathname only — never include hash/query from a prior redirect
+    const cleanUrl = window.location.origin + window.location.pathname;
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.href,
-        queryParams: { hd: 'poltek-petrokimia.ac.id' } // restrict to campus domain
+        redirectTo: cleanUrl,
+        queryParams: { hd: 'poltek-petrokimia.ac.id' }
       }
     });
     if (error) {
-      Swal.fire({ icon: 'error', text: error.message, confirmButtonColor: '#4f46e5' });
+      Swal.fire({ icon:'error', text: error.message, confirmButtonColor:'#4f46e5' });
       document.getElementById("l-text").innerText = "Masuk dengan Google";
       document.getElementById("btn-login").disabled = false;
     }
   }
 
-  async function checkSession() {
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) return; // not logged in, stay on login screen
+  async function validateAndEnter(authUser) {
+    setLoadingMsg("Memvalidasi akses...");
+    const email = authUser.email;
+    const avatar = authUser.user_metadata?.avatar_url || '';
 
-    const email = session.user.email;
-    const avatar = session.user.user_metadata?.avatar_url || '';
+    // Always fetch role fresh from DB — no cache
+    const { data: panitia, error } = await sb.from('panitia')
+      .select('nama,penugasan,jabatan')
+      .eq('email', email)
+      .single();
 
-    // Look up panitia by email
-    const { data: rows, error } = await sb.from('panitia').select('nama,penugasan,jabatan').eq('email', email).single();
-
-    if (error || !rows) {
-      await sb.auth.signOut();
-      Swal.fire({
-        icon: 'error', title: 'Akses Ditolak',
-        text: `Akun ${email} tidak terdaftar sebagai panitia. Hubungi administrator.`,
-        confirmButtonColor: '#4f46e5'
-      });
+    if (error || !panitia) {
+      await sb.auth.signOut(); // triggers SIGNED_OUT → showLogin()
+      Swal.fire({ icon:'error', title:'Akses Ditolak',
+        html: `Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
+        confirmButtonColor:'#4f46e5' });
       return;
     }
 
-    // Store session info
-    namaPanitiaLogin = rows.nama;
-    const roles = rows.penugasan || '';
-    sessionStorage.setItem("pmbSess", JSON.stringify({ nama: rows.nama, roles, bulkMode: false, mirrorMode: false, avatar, email }));
-    restoreSess();
-  }
-
-  async function logout() {
-    await sb.auth.signOut();
-    sessionStorage.removeItem("pmbSess");
-    clearInterval(intervalSync);
-    location.reload();
-  }
-
-  // ── INIT ──────────────────────────────────────────
-  window.onload = async () => {
-    // Handle OAuth redirect callback
-    const { data: { session } } = await sb.auth.getSession();
-    const cached = sessionStorage.getItem("pmbSess");
-    if (session && cached) {
-      const sess = JSON.parse(cached);
-      namaPanitiaLogin = sess.nama;
-      restoreSess();
-    } else if (session) {
-      await checkSession();
+    // Block Management from this page
+    const rolesRaw = (panitia.penugasan || '').split(',').map(r => r.trim())
+                     .filter(r => r.toLowerCase() !== 'management' && r !== '');
+    if (rolesRaw.length === 0) {
+      await sb.auth.signOut();
+      Swal.fire({ icon:'warning', title:'Akses Terbatas',
+        html: `Akun <b>${panitia.nama}</b> hanya dapat mengakses Dashboard, bukan portal panitia.<br>
+               <a href="dashboard" class="btn btn-sm btn-primary mt-3 px-4 rounded-pill">Buka Dashboard</a>`,
+        showConfirmButton: false });
+      return;
     }
-    // else: show login screen
-  };
 
-  async function restoreSess() {
-    let sess = JSON.parse(sessionStorage.getItem("pmbSess"));
-    userEmail = sess.email || '';   // set per-user draft key
+    // Set globals (fresh data, never from cache)
+    namaPanitiaLogin = panitia.nama;
+    userEmail = email;
+
+    // Restore visual prefs only (bulk/mirror) from localStorage per-user
+    const prefs = JSON.parse(localStorage.getItem(`pmbPrefs_${email}`) || '{}');
+
+    hideLoader();
     document.getElementById("view-login").classList.add("hidden");
     document.getElementById("view-dashboard").classList.remove("hidden");
-    document.getElementById("nama-panitia").innerText = sess.nama;
-    namaPanitiaLogin = sess.nama;
+    document.getElementById("nama-panitia").innerText = panitia.nama;
 
-    if (sess.avatar) {
+    if (avatar) {
       const av = document.getElementById("user-avatar");
-      av.src = sess.avatar; av.classList.remove("hidden");
+      av.src = avatar; av.classList.remove("hidden");
     }
 
-    let sel = document.getElementById("pilih-tugas"); sel.innerHTML = "";
-    let rolesRaw = (sess.roles || '').split(',').map(r => r.trim()).filter(r => r.toLowerCase() !== "management" && r !== "");
-    if (rolesRaw.length === 0) {
-      Swal.fire('Akses Terbatas', 'Akun Anda hanya memiliki akses Dashboard, bukan portal panitia.', 'error');
-      return logout();
-    }
+    const sel = document.getElementById("pilih-tugas"); sel.innerHTML = "";
     rolesRaw.forEach(r => sel.innerHTML += `<option value="${r}">${r}</option>`);
     currentRole = sel.value;
 
-    if (sess.bulkMode) { document.getElementById("mode-bulk").checked = true; isBulkMode = true; document.getElementById("bulk-info").classList.remove("hidden"); }
-    if (sess.mirrorMode) { document.getElementById("mode-mirror").checked = true; document.getElementById("reader").classList.add("mirror-mode"); }
+    isBulkMode = prefs.bulkMode || false;
+    if (isBulkMode) { document.getElementById("mode-bulk").checked = true; document.getElementById("bulk-info").classList.remove("hidden"); }
+    if (prefs.mirrorMode) { document.getElementById("mode-mirror").checked = true; document.getElementById("reader").classList.add("mirror-mode"); }
 
     resetUI();
     await syncData(false);
+    if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
     qrScanner = new Html5Qrcode("reader"); initCam();
     if (intervalSync) clearInterval(intervalSync);
     intervalSync = setInterval(() => { if (!document.getElementById("view-dashboard").classList.contains("hidden")) syncData(false); }, 60000);
     checkDraftBanner();
   }
+
+  async function logout() {
+    clearInterval(intervalSync);
+    if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
+    await sb.auth.signOut(); // onAuthStateChange SIGNED_OUT fires → showLogin()
+  }
+
+  // ── INIT — single entry point ──────────────────────
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'INITIAL_SESSION') {
+      if (!session) { showLogin(); return; }
+      // Validate server-side — getUser() makes a network call
+      setLoadingMsg("Memeriksa sesi...");
+      const { data: { user }, error } = await sb.auth.getUser();
+      if (error || !user) { await sb.auth.signOut(); return; }
+      await validateAndEnter(user);
+    } else if (event === 'SIGNED_IN') {
+      // Fires after OAuth redirect
+      const { data: { user }, error } = await sb.auth.getUser();
+      if (error || !user) { await sb.auth.signOut(); return; }
+      await validateAndEnter(user);
+    } else if (event === 'SIGNED_OUT') {
+      // Fires on logout, token expiry, or signOut() from another tab
+      clearInterval(intervalSync);
+      bulkQueue = [];
+      showLogin();
+    } else if (event === 'TOKEN_REFRESHED') {
+      // Supabase auto-refreshed the token — nothing to do
+    } else if (event === 'USER_UPDATED') {
+      // Re-validate if user data changed
+      const { data: { user } } = await sb.auth.getUser();
+      if (user) await validateAndEnter(user);
+    }
+  });
 
   // ── SUPABASE HELPERS ──────────────────────────────
   async function sbGet(table, filters) {
@@ -397,19 +443,24 @@
     } else { currentRole = newRole; resetUI(); }
   }
 
+  function savePrefs() {
+    if (!userEmail) return;
+    localStorage.setItem(`pmbPrefs_${userEmail}`, JSON.stringify({
+      bulkMode: isBulkMode,
+      mirrorMode: document.getElementById("mode-mirror")?.checked || false
+    }));
+  }
+
   function toggleBulk() {
     isBulkMode = document.getElementById("mode-bulk").checked;
-    let sess = JSON.parse(sessionStorage.getItem("pmbSess") || '{}');
-    sess.bulkMode = isBulkMode; sessionStorage.setItem("pmbSess", JSON.stringify(sess));
+    savePrefs();
     document.getElementById("bulk-info").classList.toggle("hidden", !isBulkMode);
     if (!isBulkMode) { bulkQueue = []; renderBulkUI(); }
   }
 
   function toggleMirror() {
-    let isMirror = document.getElementById("mode-mirror").checked;
-    let sess = JSON.parse(sessionStorage.getItem("pmbSess") || '{}');
-    sess.mirrorMode = isMirror; sessionStorage.setItem("pmbSess", JSON.stringify(sess));
-    document.getElementById("reader").classList.toggle("mirror-mode", isMirror);
+    document.getElementById("reader").classList.toggle("mirror-mode", document.getElementById("mode-mirror").checked);
+    savePrefs();
   }
 
   function handleManual(e) { if (e.key === 'Enter') prosesManual(); }
