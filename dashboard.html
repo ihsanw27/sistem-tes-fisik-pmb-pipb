@@ -51,7 +51,7 @@
         <span id="l-text">Masuk dengan Google</span>
       </button>
       <p class="small text-muted mt-3 mb-0" style="font-size:0.75rem;">
-        <i class="bi bi-shield-lock me-1"></i>Hanya panitia terdaftar dengan akun <strong>@poltek-petrokimia.ac.id</strong> yang dapat mengakses.
+        <i class="bi bi-shield-lock me-1"></i>Seluruh panitia terdaftar dengan akun <strong>@poltek-petrokimia.ac.id</strong> dapat mengakses dashboard ini.
       </p>
     </div>
   </div>
@@ -224,8 +224,8 @@
         return Swal.fire({ icon:'error', title:'Akses Ditolak', text:`Akun ${email} tidak terdaftar sebagai panitia.`, confirmButtonColor:'#5b7cfa' });
       }
 
-      sessionStorage.setItem("dashSess", JSON.stringify({ nama: rows.nama, avatar }));
-      restoreSession(rows.nama, avatar);
+      sessionStorage.setItem("dashSess", JSON.stringify({ nama: rows.nama, avatar, penugasan: rows.penugasan || '' }));
+      restoreSession(rows.nama, avatar, rows.penugasan || '');
     }
 
     async function logout() {
@@ -241,19 +241,30 @@
       const cached = sessionStorage.getItem("dashSess");
       if (session && cached) {
         const s = JSON.parse(cached);
-        restoreSession(s.nama, s.avatar);
+        restoreSession(s.nama, s.avatar, s.penugasan || '');
       } else if (session) {
         await checkSession();
       }
     };
 
-    function restoreSession(nama, avatar) {
+    function restoreSession(nama, avatar, penugasan) {
       document.getElementById("view-login").classList.add("hidden");
       document.getElementById("view-dashboard").classList.remove("hidden");
       document.getElementById("admin-nama").innerText = nama;
       if (avatar) { const av = document.getElementById("user-avatar"); av.src = avatar; av.classList.remove("hidden"); }
+
+      // Show role badge next to name
+      const roleEl = document.getElementById("admin-role");
+      if (roleEl) roleEl.innerText = penugasan || '';
+
+      // Show "→ Portal Panitia" button only for non-Management
+      const isManagement = (penugasan || '').toLowerCase().includes('management') ||
+                           (penugasan || '').trim() === '';
+      const linkBtn = document.getElementById("btn-goto-panitia");
+      if (linkBtn) linkBtn.classList.toggle("hidden", isManagement);
+
       loadData();
-      startRealtime(); // start live updates immediately after login
+      startRealtime();
     }
 
     // ── DATA ──────────────────────────────────────────
