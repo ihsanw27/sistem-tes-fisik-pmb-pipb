@@ -72,6 +72,10 @@
     [data-theme="dark"] .form-control,
     [data-theme="dark"] .form-select { background: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
     [data-theme="dark"] .form-control::placeholder { color: var(--text-muted); }
+    /* Search field: distinct bg + visible border so it doesn't vanish in dark */
+    [data-theme="dark"] .search-group { background: var(--bg-card); border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .search-group .form-control,
+    [data-theme="dark"] .search-group .input-group-text { background: var(--bg-card); }
     [data-theme="dark"] .card { background-color: var(--bg-card); }
     [data-theme="dark"] .table { color: var(--text-main); }
     [data-theme="dark"] .table th { background-color: var(--bg-inner); color: var(--text-muted); }
@@ -81,6 +85,20 @@
     [data-theme="dark"] .border { border-color: var(--border-soft) !important; }
     [data-theme="dark"] .border-top { border-color: var(--border-soft) !important; }
     [data-theme="dark"] .border-bottom { border-color: var(--border-soft) !important; }
+
+    /* Dark mode for ALL SweetAlert2 modals */
+    [data-theme="dark"] .swal2-popup { background: var(--bg-card) !important; color: var(--text-main) !important; }
+    [data-theme="dark"] .swal2-title { color: var(--text-main) !important; }
+    [data-theme="dark"] .swal2-html-container { color: var(--text-main) !important; }
+    [data-theme="dark"] .swal2-html-container .text-muted { color: var(--text-muted) !important; }
+    [data-theme="dark"] .swal2-html-container table,
+    [data-theme="dark"] .swal2-html-container td { color: var(--text-main) !important; border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .swal2-html-container .bg-light { background: var(--bg-inner) !important; }
+    [data-theme="dark"] .swal2-html-container .bg-white { background: var(--bg-inner) !important; }
+    [data-theme="dark"] .swal2-html-container .border { border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .swal2-html-container .border-top { border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .swal2-html-container hr { border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .photo-thumb-modal.bg-light { background: var(--bg-inner) !important; }
 </style>
 </head>
 <body>
@@ -155,7 +173,7 @@
                 <i class="bi bi-arrow-repeat" id="s-icon"></i> <span id="s-text">Sync</span>
               </button>
             </div>
-            <div class="input-group input-group-sm shadow-sm">
+            <div class="input-group input-group-sm shadow-sm search-group" style="border:1.5px solid var(--border-soft); border-radius:8px; overflow:hidden;">
               <input type="text" id="input-manual" class="form-control fw-bold py-2 border-0" placeholder="Ketik No. Peserta atau Nama" onkeypress="handleManual(event)" oninput="liveSearch()" autocomplete="off">
               <button class="btn text-white fw-bold px-3" style="background: var(--accent);" onclick="prosesManual()"><i class="bi bi-search"></i> Cari</button>
             </div>
