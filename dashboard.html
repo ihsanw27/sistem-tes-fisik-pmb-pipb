@@ -31,20 +31,20 @@
     }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; display: flex; flex-direction: column; }
     .login-wrapper { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-    .card-login { background: var(--bg-card); border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(100,116,139,0.06); padding: 40px 30px; border: 1px solid #ffffff; width: 100%; max-width: 420px; text-align: center; }
+    .card-login { background: var(--bg-card); border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(100,116,139,0.06); padding: 40px 30px; border: 1px solid var(--border-soft); width: 100%; max-width: 420px; text-align: center; }
     .campus-logo { max-height: 60px; width: auto; margin: 0 auto 25px auto; display: block; object-fit: contain; }
-    .btn-google { background: #ffffff; color: #334155; border: 2px solid var(--border-soft); box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-radius: 14px; padding: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.2s; width: 100%; cursor: pointer; }
+    .btn-google { background: var(--bg-card); color: var(--text-main); border: 2px solid var(--border-soft); box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-radius: 14px; padding: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.2s; width: 100%; cursor: pointer; }
     .btn-google:hover { border-color: #4285f4; box-shadow: 0 4px 16px rgba(66,133,244,0.15); }
     .btn-google img { width: 22px; height: 22px; }
     .dashboard-wrapper { flex-grow: 1; padding: 20px; }
-    .navbar-custom { background: var(--bg-card); border-radius: 20px; padding: 15px 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ffffff; }
-    .stat-card { background: var(--bg-card); border-radius: 20px; padding: 25px; border: 1px solid #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); height: 100%; display: flex; flex-direction: column; transition: all 0.3s ease; }
+    .navbar-custom { background: var(--bg-card); border-radius: 20px; padding: 15px 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-soft); }
+    .stat-card { background: var(--bg-card); border-radius: 20px; padding: 25px; border: 1px solid var(--border-soft); box-shadow: 0 4px 15px rgba(0,0,0,0.03); height: 100%; display: flex; flex-direction: column; transition: all 0.3s ease; }
     .stat-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
     .stat-val { font-size: 3rem; font-weight: 800; line-height: 1; margin: 0; }
     .progress { background-color: #edf2f7; border-radius: 50rem; overflow: hidden; }
     .progress-bar { transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
     .micro-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
-    .table-container { background: var(--bg-card); border-radius: 20px; padding: 25px; border: 1px solid #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); overflow-x: auto; }
+    .table-container { background: var(--bg-card); border-radius: 20px; padding: 25px; border: 1px solid var(--border-soft); box-shadow: 0 4px 15px rgba(0,0,0,0.03); overflow-x: auto; }
     .table th { background-color: #f8fafc; color: var(--text-muted); font-weight: 600; font-size: 0.8rem; border-bottom: 2px solid var(--border-soft); padding: 15px; }
     .table td { padding: 15px; vertical-align: middle; border-bottom: 1px solid var(--border-soft); font-size: 0.85rem; font-weight: 500; }
     .hidden { display: none !important; }
@@ -70,6 +70,9 @@
     [data-theme="dark"] .input-group-text { background: var(--bg-inner); color: var(--text-muted); border-color: var(--border-soft); }
     [data-theme="dark"] .border { border-color: var(--border-soft) !important; }
     [data-theme="dark"] .border-top { border-color: var(--border-soft) !important; }
+
+    .stat-card-accent { background: linear-gradient(135deg, var(--accent) 0%, #3b5bdb 100%); }
+    [data-theme="dark"] .stat-card-accent { background: linear-gradient(135deg, #3730a3 0%, #1e3a8a 100%); }
 </style>
 </head>
 <body>
@@ -195,7 +198,7 @@
         </div>
 
         <div class="col-lg-4 col-md-12">
-          <div class="stat-card" style="background: linear-gradient(135deg, var(--accent) 0%, #3b5bdb 100%); color: white; border: none;">
+          <div class="stat-card stat-card-accent" style="color: white; border: none;">
             <div class="stat-title text-white opacity-75"><i class="bi bi-check2-all"></i> 5. Peserta yang Sudah Selesai</div>
             <h2 class="fw-bold mb-0 text-white"><span id="d-selesai-semua">0</span> <small class="fs-6 opacity-75">Orang</small></h2>
             <p class="small fw-medium opacity-75 mt-auto mb-0 pt-3 border-top border-light">*Lolos verifikasi & telah menyelesaikan seluruh tes fisik.</p>
@@ -655,7 +658,13 @@
       const card = document.getElementById('p3k-card');
       const isAlert = s.insidenMedis > 0;
       card.style.borderColor = isAlert ? 'var(--danger)' : 'var(--success)';
-      card.style.background = isAlert ? '#fff5f5' : '#fdfdfd';
+      // Theme-aware: alert tint in light mode, subtle dark tint in dark mode
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      if (isAlert) {
+        card.style.background = isDark ? 'rgba(248,113,113,0.12)' : '#fff5f5';
+      } else {
+        card.style.background = 'var(--bg-card)';
+      }
       ['p3k-title','d-medis','p3k-sub'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.classList.remove('text-success','text-danger'); el.classList.add(isAlert?'text-danger':'text-success'); }
