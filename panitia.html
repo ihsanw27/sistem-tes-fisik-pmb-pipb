@@ -15,16 +15,20 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module">
-    import { injectSpeedInsights } from 'https://cdn.jsdelivr.net/npm/@vercel/speed-insights@2.0.0/dist/index.mjs';
-    injectSpeedInsights();
-  </script>
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  </script>
-  <script defer src="/_vercel/insights/script.js"></script>
   <style>
     :root { --bg-page: #f1f5f9; --bg-card: #ffffff; --text-main: #334155; --text-muted: #64748b; --accent: #4f46e5; --accent-soft: #e0e7ff; --success: #10b981; --danger: #ef4444; --border-soft: #e2e8f0; }
+
+    [data-theme="dark"] {
+      --bg-page: #0f172a;
+      --bg-card: #1e293b;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #818cf8;
+      --accent-soft: #312e81;
+      --success: #34d399;
+      --danger: #f87171;
+      --border-soft: #334155;
+    }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
     .app-container { max-width: 500px; margin: 0 auto; padding: 15px; min-height: 100vh; display: flex; flex-direction: column; }
     .card-custom { background: var(--bg-card); border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); padding: 25px; border: 1px solid rgba(255,255,255,0.8); }
@@ -61,6 +65,12 @@
   </style>
 </head>
 <body>
+  <!-- Dark mode toggle -->
+  <button id="theme-toggle" onclick="toggleTheme()" title="Mode gelap/terang"
+    style="position:fixed; bottom:18px; right:18px; z-index:9000; width:46px; height:46px; border-radius:50%; border:none; background:var(--bg-card); color:var(--text-main); box-shadow:0 4px 14px rgba(0,0,0,0.18); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center;">
+    <i class="bi bi-moon-stars"></i>
+  </button>
+
 <!-- Auth loading overlay -->
 <div id="auth-loading" style="position:fixed;inset:0;background:#f1f5f9;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
   <img src="/logo.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
@@ -263,7 +273,33 @@
   // =============================================
   // KONFIGURASI — ganti dengan URL & key Anda
   // =============================================
-  const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
+  
+  // ── DARK MODE ──────────────────────────────────────
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    const icon = document.querySelector("#theme-toggle i");
+    if (theme === 'dark') {
+      root.setAttribute('data-theme', 'dark');
+      if (icon) icon.className = 'bi bi-sun';
+    } else {
+      root.removeAttribute('data-theme');
+      if (icon) icon.className = 'bi bi-moon-stars';
+    }
+  }
+  function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('pmbTheme', next); } catch(e){}
+    applyTheme(next);
+  }
+  // Apply saved theme as early as possible
+  (function() {
+    let saved = 'light';
+    try { saved = localStorage.getItem('pmbTheme') || 'light'; } catch(e){}
+    applyTheme(saved);
+  })();
+
+    const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
   const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
 
   const { createClient } = supabase;
@@ -407,20 +443,35 @@
       setRoleCache(email, panitia);
     }
 
-    // Management: preserve session, just redirect — never signOut
-    const rolesRaw = (panitia.penugasan || '').split(',').map(r => r.trim())
-                     .filter(r => r.toLowerCase() !== 'management' && r !== '');
-    if (rolesRaw.length === 0) {
+    const penugasanLower = (panitia.penugasan || '').toLowerCase();
+    const isAdmin  = penugasanLower.includes('admin');
+    const isViewer = penugasanLower.includes('viewer') || penugasanLower.includes('management') || (panitia.penugasan || '').trim() === '';
+
+    // All available panitia posts — Admin gets access to every one of these.
+    const ALL_POSTS = ['Verifikasi Administrasi', 'Tes Lari', 'Tes Ketinggian', 'Tes Ruang Sempit dan Gelap', 'Kesehatan'];
+
+    let rolesRaw;
+    if (isAdmin) {
+      // Admin: full access to ALL posts
+      rolesRaw = ALL_POSTS.slice();
+    } else {
+      rolesRaw = (panitia.penugasan || '').split(',').map(r => r.trim())
+                 .filter(r => {
+                   const l = r.toLowerCase();
+                   return l !== 'management' && l !== 'viewer' && l !== 'admin' && r !== '';
+                 });
+    }
+
+    // Viewer (or anyone with no panitia post): no access here — send to Dashboard.
+    // Session preserved; auto-redirect so they land where they belong.
+    if (isViewer || rolesRaw.length === 0) {
       hideLoader();
       Swal.fire({
-        icon:'info', title:'Akses Terbatas',
-        html:`<b>${panitia.nama}</b>, akun Anda tidak memiliki akses ke portal panitia.<br><br>
-              <a href="dashboard" class="btn btn-primary px-4 rounded-pill fw-bold text-decoration-none">
-                <i class="bi bi-speedometer2 me-1"></i>Buka Dashboard
-              </a>`,
-        showConfirmButton: false,
-        allowOutsideClick: false
+        icon:'info', title:'Mengalihkan ke Dashboard...',
+        html:`<b>${panitia.nama}</b>, akun Anda tidak memiliki akses ke portal panitia.<br>Anda akan diarahkan ke Dashboard.`,
+        timer: 1800, showConfirmButton: false, allowOutsideClick: false
       });
+      setTimeout(() => { window.location.href = 'dashboard'; }, 1800);
       return;
     }
 
@@ -464,7 +515,10 @@
           // Only resync when not actively filling a form (avoid disrupting input)
           if (!document.getElementById("form-nilai-single").classList.contains("hidden")) return;
           if (!document.getElementById("form-nilai-bulk").classList.contains("hidden")) return;
-          syncData(false);
+          // DEBOUNCE: coalesce bursts of changes into one resync per 4s.
+          // Prevents a thundering herd when many check-ins happen rapidly —
+          // 100 clients won't each full-fetch on every single row change.
+          scheduleRealtimeSync();
         })
         .subscribe();
     }
@@ -541,7 +595,7 @@
     try { if (qrScanner) { qrScanner.stop().catch(()=>{}); qrScanner.clear(); } } catch(e) {}
   }
 
-  // ── INIT ───────────────────────────────��────────────
+  // ── INIT ────────────────────────────────────────────
   // Two-phase startup:
   // Phase 1 (sync, 0ms): read Supabase localStorage directly — no network,
   //   no await. If session+role cache both exist → render app immediately.
@@ -655,6 +709,19 @@
     });
   });
 
+  // Debounced realtime resync — coalesces event bursts into one fetch.
+  let realtimeSyncTimer = null;
+  function scheduleRealtimeSync() {
+    if (realtimeSyncTimer) return; // already scheduled within window
+    realtimeSyncTimer = setTimeout(() => {
+      realtimeSyncTimer = null;
+      // Re-check forms aren't open at fire time
+      if (!document.getElementById("form-nilai-single").classList.contains("hidden")) return;
+      if (!document.getElementById("form-nilai-bulk").classList.contains("hidden")) return;
+      syncData(false);
+    }, 4000);
+  }
+
   // ── SUPABASE HELPERS ──────────────────────────────
   async function sbGet(table, filters) {
     let q = sb.from(table).select('*');
@@ -715,7 +782,9 @@
     let ic = document.getElementById("s-icon"), btn = document.getElementById("btn-sync");
     if (btn) btn.disabled = true; if (ic) ic.className = "spinner-border spinner-border-sm";
     try {
-      const { data, error } = await sb.from('peserta').select('*').eq('kehadiran', true).order('nomor_peserta', { ascending: true });
+      // Fetch only columns the scanner flow needs — skip biodata (nik, foto,
+      // jurusan, etc) which panitia never displays. ~40% smaller transfer.
+      const { data, error } = await sb.from('peserta').select('nomor_peserta,nama,lolos_verifikasi,catatan_verifikasi,panitia_verifikator,timestamp_verifikasi,lolos_ketinggian,catatan_ketinggian,panitia_ketinggian,timestamp_ketinggian,lolos_sempit,catatan_sempit,panitia_sempit,timestamp_sempit,stik_merah,stik_kuning,stik_hijau,stik_biru,catatan_lari,panitia_lari,timestamp_lari,catatan_medis,panitia_medis,timestamp_medis').eq('kehadiran', true).order('nomor_peserta', { ascending: true });
       if (error) throw error;
       pesertaList = data.map(mapPeserta);
       if (toast) Swal.fire({ title: 'Data Sinkron!', timer: 1000, showConfirmButton: false, toast: true, position: 'top', icon: 'success' });

@@ -14,14 +14,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module">
-    import { injectSpeedInsights } from 'https://cdn.jsdelivr.net/npm/@vercel/speed-insights@2.0.0/dist/index.mjs';
-    injectSpeedInsights();
-  </script>
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  </script>
-  <script defer src="/_vercel/insights/script.js"></script>
   <style>
     :root {
       --bg-page: #e8eef2;
@@ -32,6 +24,17 @@
       --accent-hover: #4c6ef5;
       --success: #38d9a9;
       --border-soft: #dce4ec;
+    }
+
+    [data-theme="dark"] {
+      --bg-page: #0f172a;
+      --bg-card: #1e293b;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #818cf8;
+      --accent-hover: #6366f1;
+      --success: #34d399;
+      --border-soft: #334155;
     }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
     .kiosk-container { background: var(--bg-card); border-radius: 28px; padding: 40px 30px; box-shadow: 0 20px 40px -10px rgba(100,116,139,0.1); width: 100%; max-width: 420px; text-align: center; border: 1px solid #ffffff; }
@@ -56,6 +59,12 @@
   </style>
 </head>
 <body>
+  <!-- Dark mode toggle -->
+  <button id="theme-toggle" onclick="toggleTheme()" title="Mode gelap/terang"
+    style="position:fixed; bottom:18px; right:18px; z-index:9000; width:46px; height:46px; border-radius:50%; border:none; background:var(--bg-card); color:var(--text-main); box-shadow:0 4px 14px rgba(0,0,0,0.18); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center;">
+    <i class="bi bi-moon-stars"></i>
+  </button>
+
   <div id="net-banner" class="hidden" style="position:fixed;top:0;left:0;right:0;z-index:9998;background:#dc2626;color:#fff;text-align:center;padding:10px 16px;font-weight:600;font-size:0.85rem;">
     <i class="bi bi-wifi-off me-1"></i><span id="net-banner-text">Koneksi terputus — coba lagi.</span>
   </div>
@@ -133,6 +142,32 @@
     // =============================================
     // KONFIGURASI — ganti dengan URL & key Anda
     // =============================================
+    
+  // ── DARK MODE ──────────────────────────────────────
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    const icon = document.querySelector("#theme-toggle i");
+    if (theme === 'dark') {
+      root.setAttribute('data-theme', 'dark');
+      if (icon) icon.className = 'bi bi-sun';
+    } else {
+      root.removeAttribute('data-theme');
+      if (icon) icon.className = 'bi bi-moon-stars';
+    }
+  }
+  function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('pmbTheme', next); } catch(e){}
+    applyTheme(next);
+  }
+  // Apply saved theme as early as possible
+  (function() {
+    let saved = 'light';
+    try { saved = localStorage.getItem('pmbTheme') || 'light'; } catch(e){}
+    applyTheme(saved);
+  })();
+
     const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
     const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
 

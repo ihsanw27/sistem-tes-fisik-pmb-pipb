@@ -12,16 +12,23 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module">
-    import { injectSpeedInsights } from 'https://cdn.jsdelivr.net/npm/@vercel/speed-insights@2.0.0/dist/index.mjs';
-    injectSpeedInsights();
-  </script>
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  </script>
-  <script defer src="/_vercel/insights/script.js"></script>
   <style>
     :root { --bg-page: #e8eef2; --bg-card: #fdfdfd; --text-main: #334155; --text-muted: #64748b; --accent: #5b7cfa; --accent-soft: #edf2ff; --success: #38d9a9; --danger: #ff8787; --warning: #fcc419; --info: #4dabf7; --purple: #845ef7; --border-soft: #dce4ec; }
+
+    [data-theme="dark"] {
+      --bg-page: #0f172a;
+      --bg-card: #1e293b;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #818cf8;
+      --accent-soft: #312e81;
+      --success: #34d399;
+      --danger: #f87171;
+      --warning: #fbbf24;
+      --info: #60a5fa;
+      --purple: #a78bfa;
+      --border-soft: #334155;
+    }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; display: flex; flex-direction: column; }
     .login-wrapper { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
     .card-login { background: var(--bg-card); border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(100,116,139,0.06); padding: 40px 30px; border: 1px solid #ffffff; width: 100%; max-width: 420px; text-align: center; }
@@ -50,6 +57,12 @@
   </style>
 </head>
 <body>
+  <!-- Dark mode toggle -->
+  <button id="theme-toggle" onclick="toggleTheme()" title="Mode gelap/terang"
+    style="position:fixed; bottom:18px; right:18px; z-index:9000; width:46px; height:46px; border-radius:50%; border:none; background:var(--bg-card); color:var(--text-main); box-shadow:0 4px 14px rgba(0,0,0,0.18); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center;">
+    <i class="bi bi-moon-stars"></i>
+  </button>
+
 
   <div id="net-banner" class="hidden" style="position:fixed;top:0;left:0;right:0;z-index:9998;background:#dc2626;color:#fff;text-align:center;padding:10px 16px;font-weight:600;font-size:0.85rem;">
     <i class="bi bi-wifi-off me-1"></i><span id="net-banner-text">Koneksi terputus.</span>
@@ -105,7 +118,7 @@
         </div>
         <button onclick="toggleLivestream()" id="btn-livestream" class="btn btn-light rounded-circle border p-2 text-primary" title="Mode Livestream"><i class="bi bi-display"></i></button>
         <button onclick="loadData()" id="btn-refresh" class="btn btn-light rounded-circle border p-2" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
-        <button onclick="exportCSV()" class="btn btn-light rounded-circle border p-2 text-success" title="Export CSV"><i class="bi bi-download"></i></button>
+        <button id="btn-csv" onclick="exportCSV()" class="btn btn-light rounded-circle border p-2 text-success" title="Export CSV"><i class="bi bi-download"></i></button>
         <button id="btn-logout" onclick="logout()" class="btn btn-light rounded-circle border p-2 text-danger" title="Keluar"><i class="bi bi-power"></i></button>
       </div>
     </div>
@@ -206,6 +219,32 @@
   </div>
 
   <script>
+    
+  // ── DARK MODE ──────────────────────────────────────
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    const icon = document.querySelector("#theme-toggle i");
+    if (theme === 'dark') {
+      root.setAttribute('data-theme', 'dark');
+      if (icon) icon.className = 'bi bi-sun';
+    } else {
+      root.removeAttribute('data-theme');
+      if (icon) icon.className = 'bi bi-moon-stars';
+    }
+  }
+  function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('pmbTheme', next); } catch(e){}
+    applyTheme(next);
+  }
+  // Apply saved theme as early as possible
+  (function() {
+    let saved = 'light';
+    try { saved = localStorage.getItem('pmbTheme') || 'light'; } catch(e){}
+    applyTheme(saved);
+  })();
+
     const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
     const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
 
@@ -253,6 +292,8 @@
 
 
     let allData = [], isLivestreamMode = false, liveInterval = null;
+    let userRole = ''; // 'Viewer' | 'Admin' | other (panitia post names)
+    let isViewer = false;
     let realtimeChannel = null, isRealtimeActive = false;
 
     function fmt(iso) {
@@ -370,7 +411,14 @@
       }
 
       const penugasan = panitia.penugasan || '';
-      const isManagement = penugasan.toLowerCase().includes('management') || penugasan.trim() === '';
+      const lower = penugasan.toLowerCase();
+      // Role classification:
+      //  - Viewer: dashboard-only, locked to livestream, no names, no CSV
+      //  - Admin: full panitia access + unlocked dashboard
+      //  - others (post names): normal panitia, can view full dashboard too
+      userRole = penugasan;
+      isViewer = lower.includes('viewer') || lower.includes('management') || penugasan.trim() === '';
+      const isAdmin = lower.includes('admin');
 
       hideLoader();
       document.getElementById("view-login").style.display = "none";
@@ -378,16 +426,23 @@
       document.getElementById("admin-nama").innerText = panitia.nama;
 
       const roleEl = document.getElementById("admin-role");
-      if (roleEl) roleEl.innerText = penugasan;
+      if (roleEl) roleEl.innerText = isViewer ? 'Viewer' : penugasan;
 
       if (avatar) {
         const av = document.getElementById("user-avatar");
         av.src = avatar; av.classList.remove("hidden");
       }
 
-      // Portal Panitia button — hidden for Management only
+      // Portal Panitia button — shown only for those WITH panitia access
+      // (Admin or any post role). Hidden for Viewer.
       const linkBtn = document.getElementById("btn-goto-panitia");
-      if (linkBtn) linkBtn.classList.toggle("hidden", isManagement);
+      if (linkBtn) linkBtn.classList.toggle("hidden", isViewer);
+
+      // VIEWER LOCK: force livestream, hide CSV + refresh + livestream toggle,
+      // so they can only ever see aggregate stats — never names.
+      if (isViewer) {
+        applyViewerLock();
+      }
 
       startRealtime();
       loadData(); // fire and forget — dashboard shows immediately
@@ -521,7 +576,9 @@
       let btn = document.getElementById("btn-refresh");
       if (btn) { btn.disabled = true; btn.querySelector('i').className = "bi bi-arrow-clockwise spinner-border spinner-border-sm"; }
       try {
-        const { data, error } = await sb.from('peserta').select('*').order('nomor_peserta', { ascending: true });
+        // Explicit column list (excludes internal id). Dashboard uses biodata for
+        // the Detail modal + CSV export, plus all result columns for stats.
+        const { data, error } = await sb.from('peserta').select('nomor_peserta,nik,nama,jenis_kelamin,jalur,jurusan_1,jurusan_2,foto,kehadiran,timestamp_kehadiran,lolos_verifikasi,catatan_verifikasi,panitia_verifikator,timestamp_verifikasi,lolos_ketinggian,catatan_ketinggian,panitia_ketinggian,timestamp_ketinggian,lolos_sempit,catatan_sempit,panitia_sempit,timestamp_sempit,stik_merah,stik_kuning,stik_hijau,stik_biru,catatan_lari,panitia_lari,timestamp_lari,catatan_medis,panitia_medis,timestamp_medis').order('nomor_peserta', { ascending: true });
         if (error) throw error;
         allData = data;
         updateStats(computeStats(data));
@@ -590,12 +647,23 @@
     }
 
     // ── REALTIME ──────────────────────────────────────
+    let realtimeReloadTimer = null;
+    function scheduleRealtimeReload() {
+      if (realtimeReloadTimer) return;
+      realtimeReloadTimer = setTimeout(() => {
+        realtimeReloadTimer = null;
+        loadData(false);
+      }, 4000);
+    }
+
     function startRealtime() {
       if (realtimeChannel) return; // already subscribed
       realtimeChannel = sb
         .channel('peserta-live')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'peserta' }, () => {
-          loadData(false);
+          // DEBOUNCE: coalesce bursts into one reload per 4s to avoid
+          // thundering herd across many dashboard viewers at scale.
+          scheduleRealtimeReload();
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
@@ -661,18 +729,33 @@
       }
     }
 
+    // Lock a Viewer into livestream mode permanently: hide the detail table,
+    // CSV export, refresh, and the livestream toggle itself.
+    function applyViewerLock() {
+      isLivestreamMode = true;
+      document.getElementById("section-tabel").classList.add("hidden");
+      ['btn-livestream', 'btn-refresh', 'btn-csv'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add("hidden");
+      });
+      if (!isRealtimeActive) startRealtime();
+    }
+
     function toggleLivestream() {
+      if (isViewer) return; // viewers can't leave livestream
       isLivestreamMode = !isLivestreamMode;
       const tabel = document.getElementById("section-tabel");
       const icon = document.querySelector("#btn-livestream i");
+      const csvBtn = document.getElementById("btn-csv");
       if (isLivestreamMode) {
         tabel.classList.add("hidden");
+        if (csvBtn) csvBtn.classList.add("hidden"); // no CSV while presenting
         icon.classList.replace("bi-display","bi-display-fill");
-        // Auto-start realtime in livestream mode
         if (!isRealtimeActive) startRealtime();
-        Swal.fire({ title:'Mode Livestream Aktif', text:'Tabel disembunyikan. Data tetap diperbarui real-time.', icon:'success', timer:2000, showConfirmButton:false, toast:true, position:'top-end' });
+        Swal.fire({ title:'Mode Livestream Aktif', text:'Tabel & ekspor disembunyikan. Data tetap real-time.', icon:'success', timer:2000, showConfirmButton:false, toast:true, position:'top-end' });
       } else {
         tabel.classList.remove("hidden");
+        if (csvBtn) csvBtn.classList.remove("hidden");
         icon.classList.replace("bi-display-fill","bi-display");
         clearInterval(liveInterval);
         Swal.fire({ title:'Mode Normal', text:'Tabel data ditampilkan kembali.', icon:'info', timer:1500, showConfirmButton:false, toast:true, position:'top-end' });
