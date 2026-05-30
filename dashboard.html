@@ -110,11 +110,6 @@
 </head>
 <body>
   <!-- Dark mode toggle -->
-  <button id="theme-toggle" onclick="toggleTheme()" title="Mode gelap/terang"
-    style="position:fixed; bottom:18px; right:18px; z-index:9000; width:46px; height:46px; border-radius:50%; border:none; background:var(--bg-card); color:var(--text-main); box-shadow:0 4px 14px rgba(0,0,0,0.18); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center;">
-    <i class="bi bi-moon-stars"></i>
-  </button>
-
 
   <div id="net-banner" class="hidden" style="position:fixed;top:0;left:0;right:0;z-index:9998;background:#dc2626;color:#fff;text-align:center;padding:10px 16px;font-weight:600;font-size:0.85rem;">
     <i class="bi bi-wifi-off me-1"></i><span id="net-banner-text">Koneksi terputus.</span>
@@ -171,6 +166,7 @@
         <button onclick="toggleLivestream()" id="btn-livestream" class="btn btn-light rounded-circle border p-2 text-primary" title="Mode Livestream"><i class="bi bi-display"></i></button>
         <button onclick="loadData()" id="btn-refresh" class="btn btn-light rounded-circle border p-2" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
         <button id="btn-csv" onclick="exportCSV()" class="btn btn-light rounded-circle border p-2 text-success" title="Export CSV"><i class="bi bi-download"></i></button>
+        <button id="theme-toggle" onclick="toggleTheme()" class="btn btn-light rounded-circle border p-2" style="color:var(--text-main);" title="Mode gelap/terang"><i class="bi bi-moon-stars"></i></button>
         <button id="btn-logout" onclick="logout()" class="btn btn-light rounded-circle border p-2 text-danger" title="Keluar"><i class="bi bi-power"></i></button>
       </div>
     </div>

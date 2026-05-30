@@ -110,11 +110,6 @@
 </head>
 <body>
   <!-- Dark mode toggle -->
-  <button id="theme-toggle" onclick="toggleTheme()" title="Mode gelap/terang"
-    style="position:fixed; bottom:18px; right:18px; z-index:9000; width:46px; height:46px; border-radius:50%; border:none; background:var(--bg-card); color:var(--text-main); box-shadow:0 4px 14px rgba(0,0,0,0.18); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center;">
-    <i class="bi bi-moon-stars"></i>
-  </button>
-
 <!-- Auth loading overlay -->
 <div id="auth-loading" style="position:fixed;inset:0;background:#f1f5f9;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
   <img src="/logo.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
@@ -156,6 +151,9 @@
       </div>
       <div class="d-flex align-items-center gap-2">
         <img id="user-avatar" src="" class="user-avatar hidden" alt="">
+        <button id="theme-toggle" onclick="toggleTheme()" title="Mode gelap/terang" class="btn btn-light rounded-circle border d-flex align-items-center justify-content-center shadow-sm" style="width:40px; height:40px; color:var(--text-main); background:var(--bg-inner);">
+          <i class="bi bi-moon-stars"></i>
+        </button>
         <a href="dashboard" class="btn btn-light border shadow-sm d-flex align-items-center justify-content-center" style="width:40px; height:40px; color:var(--accent); text-decoration:none;" title="Buka Dashboard Monitor">
           <i class="bi bi-speedometer2"></i>
         </a>
