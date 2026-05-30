@@ -767,14 +767,6 @@
   }
 
   // ── SUPABASE HELPERS ──────────────────────────────
-  async function sbGet(table, filters) {
-    let q = sb.from(table).select('*');
-    if (filters) Object.entries(filters).forEach(([k, v]) => { q = q.eq(k, v); });
-    const { data, error } = await q.order('nomor_peserta', { ascending: true });
-    if (error) throw error;
-    return data;
-  }
-
   async function sbPatch(table, matchCol, matchVal, body) {
     const { error } = await sb.from(table).update(body).eq(matchCol, matchVal);
     if (error) {
