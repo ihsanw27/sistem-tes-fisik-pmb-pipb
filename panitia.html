@@ -634,6 +634,22 @@
     try { return new Date(iso).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }); } catch { return iso; }
   }
 
+  // Patch a single field-set on the local pesertaList entry after a successful
+  // DB write — avoids relying on a re-fetch that can race with replication.
+  function patchLocalPeserta(no, fields) {
+    const idx = pesertaList.findIndex(x => x.no.toLowerCase() === no.toLowerCase());
+    if (idx === -1) return;
+    // Re-map the raw DB-style fields onto the in-memory shape
+    const p = pesertaList[idx];
+    if ('catatan_medis' in fields)   { p.medis = fields.catatan_medis || ''; }
+    if ('panitia_medis' in fields)   { p.panMedis = fields.panitia_medis || ''; }
+    if ('timestamp_medis' in fields) { p.wakMedis = formatWaktu(fields.timestamp_medis); }
+    if ('catatan_verifikasi' in fields) { p.verif = fields.lolos_verifikasi || ''; p.catVerif = fields.catatan_verifikasi || ''; p.panVerif = fields.panitia_verifikator || ''; p.wakVerif = formatWaktu(fields.timestamp_verifikasi); }
+    if ('catatan_ketinggian' in fields) { p.tinggi = fields.lolos_ketinggian || ''; p.catTinggi = fields.catatan_ketinggian || ''; p.panTinggi = fields.panitia_ketinggian || ''; p.wakTinggi = formatWaktu(fields.timestamp_ketinggian); }
+    if ('catatan_sempit' in fields) { p.sempit = fields.lolos_sempit || ''; p.catSempit = fields.catatan_sempit || ''; p.panSempit = fields.panitia_sempit || ''; p.wakSempit = formatWaktu(fields.timestamp_sempit); }
+    if ('stik_merah' in fields) { p.lariM = fields.stik_merah ?? ''; p.lariK = fields.stik_kuning ?? ''; p.lariH = fields.stik_hijau ?? ''; p.lariB = fields.stik_biru ?? ''; p.catLari = fields.catatan_lari || ''; p.panLari = fields.panitia_lari || ''; p.wakLari = formatWaktu(fields.timestamp_lari); p._lariAda = (fields.stik_merah ?? null) !== null; }
+  }
+
   function mapPeserta(p) {
     const lariAda = p.stik_merah !== null || p.stik_kuning !== null || p.stik_hijau !== null || p.stik_biru !== null;
     return {
@@ -1034,6 +1050,7 @@
     document.getElementById("lbl-catatan-single").innerHTML = isKesehatan ? `<i class="bi bi-heart-pulse-fill me-1"></i> Detail Laporan Medis:` : `<i class="bi bi-pencil-square me-1"></i> Catatan Khusus:`;
     document.getElementById("val-catatan-single").placeholder = isKesehatan ? "Detail insiden atau keluhan peserta..." : "Ketik catatan jika perlu...";
     if (isLari) { ['lari-m-single','lari-k-single','lari-h-single','lari-b-single'].forEach(id => document.getElementById(id).value = ""); }
+    document.getElementById("val-catatan-single").value = ""; // always clear note box between scans
     let btnSimpan = document.getElementById("btn-simpan-single");
     if (isKesehatan) { btnSimpan.style.background = "var(--danger)"; btnSimpan.innerHTML = `<i class="bi bi-bandaid-fill"></i> <span id="simpan-text-single">LAPORKAN MEDIS</span>`; }
     else { btnSimpan.style.background = "var(--success)"; btnSimpan.innerHTML = `<i class="bi bi-save2-fill"></i> <span id="simpan-text-single">SIMPAN DATA</span>`; }
@@ -1195,15 +1212,19 @@
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Menghapus...'; }
 
     try {
-      // Clear note, but stamp who cleared it + when (accountability trail)
-      await sbPatch('peserta', 'nomor_peserta', activeNo, {
+      const fields = {
         catatan_medis: '',
         panitia_medis: `[dihapus oleh ${namaPanitiaLogin}]`,
         timestamp_medis: new Date().toISOString()
-      });
-      await syncData(false);
+      };
+      // Clear note, but stamp who cleared it + when (accountability trail)
+      await sbPatch('peserta', 'nomor_peserta', activeNo, fields);
+      // Update local memory immediately — no re-fetch race
+      patchLocalPeserta(activeNo, fields);
       Swal.fire({ icon:'success', title:'Catatan Dihapus', timer:1500, showConfirmButton:false, toast:true, position:'top' });
       batal();
+      // Background resync for full consistency (non-blocking)
+      syncData(false);
     } catch(e) {
       Swal.fire({ icon:'error', text:'Gagal menghapus catatan.', confirmButtonColor:'#4f46e5' });
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-trash3 me-1"></i> Hapus Catatan Medis (salah input)'; }
@@ -1232,9 +1253,10 @@
     btnSimpan.disabled = true; btnSimpan.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Menyimpan...`;
     try {
       await sbPatch('peserta', 'nomor_peserta', activeNo, payload);
-      await syncData(false);
+      patchLocalPeserta(activeNo, payload); // update memory now — no re-fetch race
       Swal.fire({ icon:'success', title:'Tersimpan!', timer:1500, showConfirmButton:false, toast:true, position:'top' });
       batal();
+      syncData(false); // background full resync
     } catch(e) { Swal.fire({ icon:'error', text:'Gagal menyimpan.', confirmButtonColor:'#4f46e5' }); }
     btnSimpan.disabled = false; resetUI();
   }
