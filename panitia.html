@@ -869,68 +869,58 @@
     qrScanner = new Html5Qrcode("reader"); initCam();
   }
 
-  // Nuclear option — discard everything
-  async function batalSemuaFromBulk() {
-    const count = bulkQueue.length;
-
-    // STEP 1: Block all saves IMMEDIATELY — before the await dialog opens.
-    // This stops any in-flight oninput debounce from re-writing localStorage
-    // while the confirmation dialog is showing.
+  // High-throughput hard-delete: wipe EVERYTHING synchronously the instant
+  // the button is pressed — no await, no dialog blocking the wipe. The data
+  // is gone before the next event loop tick, so no debounce can resurrect it.
+  function wipeAllDraftNow() {
+    // 1. Lock saves permanently for this wipe cycle
     draftDestroyed = true;
     clearTimeout(draftSaveTimer);
     draftSaveTimer = null;
 
-    const result = await Swal.fire({
-      icon:'warning', title:'Batalkan Semua?',
-      html:`<b>${count} peserta</b> dan semua nilai yang sudah diisi akan dihapus permanen.`,
-      showCancelButton:true, confirmButtonColor:'#ef4444',
-      confirmButtonText:'Ya, Hapus Semua', cancelButtonText:'Tidak'
-    });
-
-    if (!result.isConfirmed) {
-      draftDestroyed = false; // user cancelled — re-enable saving
-      return;
-    }
-
-    // STEP 2: Cancel timer again (in case one was scheduled during dialog)
-    clearTimeout(draftSaveTimer);
-    draftSaveTimer = null;
-
-    // STEP 3: Blank out every form field NOW so no lingering oninput can harvest
+    // 2. Detach every field handler + blank values (stops in-flight oninput)
     document.querySelectorAll('[id^="bulk-cat-"], [id^="bulk-lari-"], [id^="bulk-status-"]').forEach(el => {
       el.oninput = null; el.onchange = null;
-      if (el.value !== undefined) el.value = '';
+      try { if (el.value !== undefined) el.value = ''; } catch(e){}
     });
 
-    // STEP 4: Wipe memory
+    // 3. Wipe memory
     bulkQueue = [];
 
-    // STEP 5: Nuke ALL draft keys for this user (and any stray anon key),
-    // not just DRAFT_KEY() — defends against userEmail timing mismatch
+    // 4. Nuke ALL draft keys synchronously
     try {
-      Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('pmbDraft_')) localStorage.removeItem(k);
-      });
+      Object.keys(localStorage).forEach(k => { if (k.startsWith('pmbDraft_')) localStorage.removeItem(k); });
     } catch {}
     updateSaveStatus('clear');
 
-    // STEP 6: Reset UI
+    // 5. Reset UI synchronously
     document.getElementById("bulk-count").innerText = 0;
     document.getElementById("bulk-list").innerHTML = "";
     document.getElementById("bulk-table-container").innerHTML = "";
+    document.getElementById("draft-banner").classList.add("hidden");
+  }
+
+  // Discard everything and return to scanner — instant, no blocking dialog.
+  function batalSemuaFromBulk() {
+    // Wipe FIRST (synchronous) — data is gone immediately, before any await
+    wipeAllDraftNow();
+
+    // Return to scanner
     activeNo = "";
     document.getElementById("form-nilai-bulk").classList.add("hidden");
     document.getElementById("form-nilai-single").classList.add("hidden");
     document.getElementById("area-scanner").classList.remove("hidden");
-    document.getElementById("draft-banner").classList.add("hidden");
     resetUI();
-    if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
+    if (qrScanner) { try { qrScanner.stop().catch(()=>{}); } catch(e){} }
     qrScanner = new Html5Qrcode("reader"); initCam();
 
-    // STEP 7: re-enable saving for future drafts
-    draftDestroyed = false;
+    // Re-enable saving for the NEXT draft, on next tick (after any stray
+    // event from this tick has been discarded by draftDestroyed=true)
+    setTimeout(() => { draftDestroyed = false; }, 0);
 
-    Swal.fire({ icon:'success', title:'Draft Dihapus', timer:1200, showConfirmButton:false, toast:true, position:'top' });
+    // Non-blocking confirmation with UNDO is overkill for high-throughput;
+    // a brief toast is enough. Data already wiped — no pre-confirm needed.
+    Swal.fire({ icon:'success', title:'Draft Dihapus', timer:1000, showConfirmButton:false, toast:true, position:'top' });
   }
 
   // Tab/window protection — but NEVER block an intentional logout
@@ -1161,11 +1151,36 @@
 
     let btnBulk = document.getElementById("btn-simpan-bulk");
     btnBulk.disabled = true; btnBulk.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Mengupload...`;
+
+    // Lock draft saves NOW — during the async upload loop, no debounce can
+    // resurrect the draft we're about to clear on success.
+    draftDestroyed = true;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
     let gagal = 0;
     for (let u of updates) { try { await sbPatch('peserta','nomor_peserta',u.no,u.payload); } catch(e) { gagal++; } }
     await syncData(false);
-    Swal.fire({ icon: gagal===0?'success':'warning', title: `${updates.length-gagal} berhasil${gagal>0?`, ${gagal} gagal`:'!'}`, timer:2000, showConfirmButton:false });
-    bulkQueue = []; clearDraft(false); updateSaveStatus('clear'); renderBulkUI(); batal();
+
+    if (gagal === 0) {
+      // Full success — wipe draft synchronously and return to scanner
+      wipeAllDraftNow();
+      activeNo = "";
+      document.getElementById("form-nilai-bulk").classList.add("hidden");
+      document.getElementById("form-nilai-single").classList.add("hidden");
+      document.getElementById("area-scanner").classList.remove("hidden");
+      resetUI();
+      if (qrScanner) { try { qrScanner.stop().catch(()=>{}); } catch(e){} }
+      qrScanner = new Html5Qrcode("reader"); initCam();
+      setTimeout(() => { draftDestroyed = false; }, 0);
+      Swal.fire({ icon:'success', title:`${updates.length} data tersimpan!`, timer:2000, showConfirmButton:false, toast:true, position:'top' });
+    } else {
+      // Partial failure — keep the draft so panitia can retry the failed ones
+      draftDestroyed = false;
+      saveDraftImmediate(); // re-persist current state
+      Swal.fire({ icon:'warning', title:`${updates.length-gagal} berhasil, ${gagal} gagal`, text:'Draft tetap disimpan. Coba upload ulang yang gagal.', confirmButtonColor:'#4f46e5' });
+    }
+
     btnBulk.disabled = false; btnBulk.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i> UPLOAD SEMUA`;
   }
 
