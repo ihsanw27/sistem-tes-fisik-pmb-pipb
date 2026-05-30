@@ -50,18 +50,27 @@ Tes Lari,Tes Ketinggian
 Sistem **tidak terikat tahun** — tanggal tersimpan otomatis di data. Untuk angkatan baru, cukup ganti datanya:
 
 ### Langkah:
-1. **Backup data lama dulu** (lihat Bagian 7) — ekspor CSV dari Dashboard.
-2. Buka Supabase → **SQL Editor**, jalankan:
+1. **Backup data lama dulu** (lihat Bagian 7) — ekspor CSV dari Dashboard. Buka filenya, pastikan lengkap & benar. **Setelah dihapus tidak bisa dikembalikan.**
+2. Buka Supabase → **SQL Editor**, jalankan isi file **`reset-tahunan.sql`** (sudah tersedia di repo). Atau jalankan langsung:
    ```sql
-   TRUNCATE TABLE peserta;
-   -- Opsional, kalau panitia juga berubah:
-   TRUNCATE TABLE panitia RESTART IDENTITY;
+   -- Kosongkan peserta saja (paling umum):
+   TRUNCATE TABLE peserta RESTART IDENTITY;
+
+   -- Opsional, hapus tanda komentar jika panitia juga berganti:
+   -- TRUNCATE TABLE panitia RESTART IDENTITY;
    ```
+   `RESTART IDENTITY` mereset kolom `id` kembali ke 1 agar data baru bersih.
 3. **Import peserta baru:** Table Editor → `peserta` → Import CSV (pakai `peserta_template.csv`).
 4. **Isi panitia baru:** Table Editor → `panitia` → Import CSV, atau INSERT manual.
-5. Selesai. Tidak ada kode yang perlu diubah.
+5. Cek `/dashboard` — pastikan tampil "Belum ada peserta check-in". Test scan 1 peserta dummy.
+6. Selesai. Tidak ada kode yang perlu diubah.
 
 > Email panitia **harus sama persis** dengan akun Google Workspace `@poltek-petrokimia.ac.id` yang dipakai login.
+
+#### Kenapa `TRUNCATE`, bukan `DELETE` atau "Drop table"
+- **`TRUNCATE`** ✅ — instan walau ribuan baris, dan dengan `RESTART IDENTITY` mereset `id`. Hanya mengosongkan baris; **RLS, fungsi `checkin_peserta`, index, dan realtime tetap utuh** — tidak perlu jalankan `setup.sql` lagi.
+- **`DELETE FROM peserta`** ⚠️ — lambat di data besar, tidak mereset `id`. Hindari.
+- **"Delete/Drop table"** ❌ — JANGAN. Itu menghapus seluruh tabel beserta RLS & fungsinya, harus setup ulang dari nol. Yang dimau hanya mengosongkan isi, bukan menghapus tabel.
 
 ---
 
@@ -115,7 +124,7 @@ Tombol bulan/matahari di pojok kanan bawah setiap halaman. Pilihan tersimpan oto
 ### Menjaga tetap di Free Tier
 Supabase Free Tier muat ratusan ribu baris — satu angkatan tidak akan penuh. Tapi untuk menjaga kebersihan:
 1. Pastikan CSV backup sudah benar dan lengkap.
-2. Jalankan `TRUNCATE TABLE peserta;` untuk mengosongkan.
+2. Jalankan file **`reset-tahunan.sql`** di SQL Editor (detail di Bagian 3). Script sudah berisi peringatan backup + opsi reset peserta saja atau peserta + panitia.
 
 ### Di luar musim PMB
 - **Supabase otomatis "pause"** setelah 7 hari tidak ada aktivitas — tidak memakai sumber daya sama sekali. Saat dibutuhkan lagi, buka dashboard Supabase untuk meng-"resume".
@@ -167,7 +176,8 @@ repo/
 ├── index.html        # Halaman check-in peserta (publik)
 ├── panitia.html      # Portal input panitia (login)
 ├── dashboard.html    # Dashboard monitor (login)
-├── setup.sql         # Skema database + RLS + fungsi (jalankan sekali)
+├── setup.sql         # Skema database + RLS + fungsi (jalankan sekali saat setup)
+├── reset-tahunan.sql # Script kosongkan data untuk angkatan baru (lihat Bagian 3)
 ├── vercel.json       # Aturan URL bersih (/panitia, /dashboard)
 ├── logo.png          # Logo kampus
 ├── peserta_template.csv
