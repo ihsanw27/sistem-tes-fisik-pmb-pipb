@@ -19,6 +19,10 @@
     import { injectSpeedInsights } from 'https://cdn.jsdelivr.net/npm/@vercel/speed-insights@2.0.0/dist/index.mjs';
     injectSpeedInsights();
   </script>
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
   <style>
     :root { --bg-page: #f1f5f9; --bg-card: #ffffff; --text-main: #334155; --text-muted: #64748b; --accent: #4f46e5; --accent-soft: #e0e7ff; --success: #10b981; --danger: #ef4444; --border-soft: #e2e8f0; }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
@@ -537,7 +541,7 @@
     try { if (qrScanner) { qrScanner.stop().catch(()=>{}); qrScanner.clear(); } } catch(e) {}
   }
 
-  // ── INIT ────────────────────────────────────────────
+  // ── INIT ───────────────────────────────��────────────
   // Two-phase startup:
   // Phase 1 (sync, 0ms): read Supabase localStorage directly — no network,
   //   no await. If session+role cache both exist → render app immediately.
