@@ -55,7 +55,7 @@
 <body>
 <!-- Auth loading overlay -->
 <div id="auth-loading" style="position:fixed;inset:0;background:#f1f5f9;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
-  <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
+  <img src="/logo.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
   <div class="spinner-border text-primary" style="width:2.5rem;height:2.5rem;" role="status"></div>
   <p class="mt-3 fw-semibold text-muted small" id="auth-loading-msg">Memeriksa sesi...</p>
 </div>
@@ -64,7 +64,7 @@
 
   <!-- LOGIN -->
   <div id="view-login" class="card-custom text-center my-auto fade-in">
-    <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo" class="campus-logo">
+    <img src="/logo.png" alt="Logo" class="campus-logo">
     <h4 class="fw-bold mb-1">Akses Panitia</h4>
     <p class="small mb-4 fw-medium text-muted">Masuk dengan akun Google kampus Anda</p>
     <button onclick="loginGoogle()" class="btn btn-google btn-custom w-100" id="btn-login">
@@ -80,7 +80,7 @@
   <div id="view-dashboard" class="hidden flex-grow-1 d-flex flex-column mt-2 fade-in">
     <div class="card-custom py-3 px-3 mb-3 d-flex flex-row justify-content-between align-items-center" style="border-radius: 18px;">
       <div class="d-flex align-items-center gap-3">
-        <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo" class="campus-logo-mini border-end pe-3" style="border-color: var(--border-soft) !important;">
+        <img src="/logo.png" alt="Logo" class="campus-logo-mini border-end pe-3" style="border-color: var(--border-soft) !important;">
         <div>
           <small class="d-block fw-bold text-muted" style="font-size: 0.65rem; letter-spacing: 0.5px;">PETUGAS POS</small>
           <strong id="nama-panitia" class="fs-6 text-dark"></strong>
@@ -312,7 +312,7 @@
   function showNetworkError() {
     const el = document.getElementById("auth-loading");
     if (el) el.innerHTML = `
-      <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:55px;margin-bottom:20px;object-fit:contain;" alt="">
+      <img src="/logo.png" style="height:55px;margin-bottom:20px;object-fit:contain;" alt="">
       <i class="bi bi-wifi-off" style="font-size:2.5rem;color:#94a3b8;"></i>
       <p class="mt-3 fw-semibold" style="color:#64748b;">Koneksi bermasalah</p>
       <p class="small text-muted mb-4">Tidak dapat menghubungi server.</p>
@@ -498,15 +498,8 @@
     // STEP 5: fire signOut without awaiting (can't block us)
     try { sb.auth.signOut({ scope: 'local' }); } catch(e) {}
 
-    // STEP 6: hard navigate immediately. Try replace first; if anything is
-    // still holding the page, force a full reload as a fallback.
-    try {
-      window.location.replace(window.location.pathname);
-    } catch(e) {
-      window.location.href = window.location.pathname;
-    }
-    // Absolute fallback — if navigation somehow didn't fire, force reload
-    setTimeout(() => { try { window.location.reload(); } catch(e){} }, 300);
+    // STEP 6: hard navigate to clean login state
+    window.location.replace(window.location.pathname);
   }
 
   // Stop every active camera track on the page — synchronous, instant.

@@ -45,7 +45,7 @@
 
   <!-- Auth loading overlay -->
   <div id="auth-loading" style="position:fixed;inset:0;background:#e8eef2;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
-    <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
+    <img src="/logo.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
     <div class="spinner-border text-primary" style="width:2.5rem;height:2.5rem;" role="status"></div>
     <p class="mt-3 fw-semibold text-muted small" id="auth-loading-msg">Memeriksa sesi...</p>
   </div>
@@ -53,7 +53,7 @@
   <!-- LOGIN -->
   <div id="view-login" class="login-wrapper fade-in" style="display:none;">
     <div class="card-login">
-      <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo" class="campus-logo">
+      <img src="/logo.png" alt="Logo" class="campus-logo">
       <h4 class="fw-bold mb-1">Portal Dashboard</h4>
       <p class="small mb-4 fw-medium text-muted">Dashboard Monitor Tes Fisik PMB</p>
       <button onclick="loginGoogle()" class="btn-google" id="btn-login">
@@ -70,7 +70,7 @@
   <div id="view-dashboard" class="dashboard-wrapper hidden fade-in">
     <div class="navbar-custom container-fluid">
       <div class="d-flex align-items-center gap-3">
-        <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo" style="height: 40px; object-fit: contain;">
+        <img src="/logo.png" alt="Logo" style="height: 40px; object-fit: contain;">
         <div class="border-start ps-3 border-2" style="border-color: var(--border-soft) !important;">
           <h5 class="mb-0 fw-bold">Monitor Tes Fisik PMB</h5>
         </div>
@@ -267,7 +267,7 @@
     function showNetworkError() {
       const el = document.getElementById("auth-loading");
       if (el) el.innerHTML = `
-        <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" style="height:55px;margin-bottom:20px;object-fit:contain;" alt="">
+        <img src="/logo.png" style="height:55px;margin-bottom:20px;object-fit:contain;" alt="">
         <i class="bi bi-wifi-off" style="font-size:2.5rem;color:#94a3b8;"></i>
         <p class="mt-3 fw-semibold" style="color:#64748b;">Koneksi bermasalah</p>
         <p class="small text-muted mb-4">Tidak dapat menghubungi server.</p>
