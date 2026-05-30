@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Portal Check-in Peserta PMB</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -36,6 +40,9 @@
     .foto-profil { width: 120px; height: 120px; object-fit: cover; border: 5px solid #edf2ff; }
     .avatar-placeholder { width: 120px; height: 120px; background: #edf2ff; color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; margin: 0 auto; }
     .hidden { display: none !important; }
+    #reader.mirror-mode video { transform: scaleX(-1) !important; }
+    .form-switch .form-check-input { width: 2.5em; height: 1.3em; cursor: pointer; }
+    .form-switch .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
     .fade-in { animation: fadeIn 0.4s ease forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   </style>
@@ -48,7 +55,15 @@
       <h3 class="fw-bold mb-2" style="color: var(--text-main);">Check-In Peserta</h3>
       <p class="small mb-3 fw-medium" style="color: var(--text-muted);">Silakan scan QR dari Kartu Ujian Anda.</p>
       <div id="reader" class="shadow-sm"></div>
-      <button onclick="initCam()" class="btn btn-light btn-custom w-100 border hidden mb-3" id="btn-cam" style="color: var(--text-muted); font-size: 0.9rem;">Izinkan Akses Kamera</button>
+      <div class="d-flex justify-content-between align-items-center mb-3 px-1">
+        <button onclick="initCam()" class="btn btn-light border hidden px-3 py-2 fw-bold" id="btn-cam" style="color: var(--text-muted); font-size: 0.8rem; border-radius: 10px;">
+          <i class="bi bi-camera-video me-1"></i> Nyalakan Kamera
+        </button>
+        <div class="form-check form-switch mb-0 ms-auto d-flex align-items-center gap-2">
+          <label class="form-check-label small fw-bold text-muted" for="mode-mirror" style="font-size: 0.75rem;">Mirror</label>
+          <input class="form-check-input mt-0" type="checkbox" id="mode-mirror" onchange="toggleMirror()">
+        </div>
+      </div>
       <div class="d-flex align-items-center my-3">
         <hr class="flex-grow-1" style="border-color: var(--border-soft);">
         <span class="px-3 small fw-bold text-muted" style="font-size: 0.7rem;">ATAU KETIK MANUAL</span>
@@ -105,9 +120,6 @@
     // =============================================
     // KONFIGURASI — ganti dengan URL & key Anda
     // =============================================
-    // =============================================
-    // KONFIGURASI — ganti dengan URL & key Anda
-    // =============================================
     const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
     const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
 
@@ -118,7 +130,23 @@
     let isScanningPaused = false;
     let tempID = "";
 
+    const MIRROR_KEY = 'pmbKioskMirror';
+
+    function toggleMirror() {
+      const isMirror = document.getElementById("mode-mirror").checked;
+      document.getElementById("reader").classList.toggle("mirror-mode", isMirror);
+      try { localStorage.setItem(MIRROR_KEY, isMirror ? '1' : '0'); } catch {}
+    }
+
     window.onload = () => {
+      // Restore mirror pref — useful when kiosk device is a front-facing tablet
+      try {
+        const saved = localStorage.getItem(MIRROR_KEY);
+        if (saved === '1') {
+          document.getElementById("mode-mirror").checked = true;
+          document.getElementById("reader").classList.add("mirror-mode");
+        }
+      } catch {}
       qrScanner = new Html5Qrcode("reader");
       initCam();
     };

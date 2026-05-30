@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Portal Panitia Tes Fisik PMB</title>
+  <!-- CDN preconnect: eliminates DNS lookup delay on first resource fetch -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -415,7 +420,7 @@
     if (prefs.mirrorMode) { document.getElementById("mode-mirror").checked = true; document.getElementById("reader").classList.add("mirror-mode"); }
 
     resetUI();
-    await syncData(false);
+    // Start camera immediately — don't block on data fetch
     if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
     qrScanner = new Html5Qrcode("reader"); initCam();
     if (intervalSync) clearInterval(intervalSync);
@@ -423,6 +428,8 @@
       if (!document.getElementById("view-dashboard").classList.contains("hidden")) syncData(false);
     }, 60000);
     checkDraftBanner();
+    // Fetch peserta list in background — scanner is already live
+    syncData(false);
 
     // Silent background: re-validate token + refresh role cache if stale
     if (skipServerCheck) {
@@ -442,9 +449,15 @@
   }
 
   async function logout() {
+    // Show login screen immediately — don't wait for signOut round-trip
+    clearRoleCache();
     clearInterval(intervalSync);
+    clearTimeout(draftSaveTimer);
+    bulkQueue = [];
+    showLogin();
+    // Cleanup happens in background
     if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
-    await sb.auth.signOut();
+    sb.auth.signOut(); // fire and forget — SIGNED_OUT will still fire
   }
 
   // ── INIT ────────────────────────────────────────────
@@ -674,11 +687,13 @@
         confirmButtonText:'Ya, Hapus', cancelButtonText:'Batal'
       }).then(r => {
         if (r.isConfirmed) {
+          clearTimeout(draftSaveTimer); draftSaveTimer = null;
           localStorage.removeItem(DRAFT_KEY());
           checkDraftBanner(); updateSaveStatus('clear');
         }
       });
     } else {
+      clearTimeout(draftSaveTimer); draftSaveTimer = null;
       localStorage.removeItem(DRAFT_KEY());
       checkDraftBanner(); updateSaveStatus('clear');
     }
@@ -742,6 +757,7 @@
 
   // Go back to scanner from bulk form to add more people
   function batalDariBulk() {
+    clearTimeout(draftSaveTimer); // cancel pending debounce before immediate save
     saveDraftImmediate(); // harvest and persist right now before navigating
     activeNo = "";
     document.getElementById("form-nilai-bulk").classList.add("hidden");
@@ -754,18 +770,42 @@
 
   // Nuclear option — discard everything
   async function batalSemuaFromBulk() {
+    const count = bulkQueue.length;
     const result = await Swal.fire({
       icon:'warning', title:'Batalkan Semua?',
-      html:`<b>${bulkQueue.length} peserta</b> dan semua nilai yang sudah diisi akan dihapus permanen.`,
+      html:`<b>${count} peserta</b> dan semua nilai yang sudah diisi akan dihapus permanen.`,
       showCancelButton:true, confirmButtonColor:'#ef4444',
       confirmButtonText:'Ya, Hapus Semua', cancelButtonText:'Tidak'
     });
-    if (result.isConfirmed) {
-      bulkQueue = [];
-      clearDraft(false);
-      renderBulkUI();
-      batal();
-    }
+    if (!result.isConfirmed) return;
+
+    // Cancel any pending debounced save FIRST — prevents ghost save after clear
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
+    // Wipe memory
+    bulkQueue = [];
+
+    // Wipe localStorage — call removeItem directly, not clearDraft(false)
+    // because clearDraft calls checkDraftBanner which might re-read stale state
+    try { localStorage.removeItem(DRAFT_KEY()); } catch {}
+    updateSaveStatus('clear');
+
+    // Update queue UI (now shows 0)
+    document.getElementById("bulk-count").innerText = 0;
+    document.getElementById("bulk-list").innerHTML = "";
+
+    // Return to scanner directly — bypass batal() to avoid any save side-effects
+    activeNo = "";
+    document.getElementById("form-nilai-bulk").classList.add("hidden");
+    document.getElementById("form-nilai-single").classList.add("hidden");
+    document.getElementById("area-scanner").classList.remove("hidden");
+    document.getElementById("draft-banner").classList.add("hidden");
+    resetUI();
+    if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
+    qrScanner = new Html5Qrcode("reader"); initCam();
+
+    Swal.fire({ icon:'success', title:'Draft Dihapus', timer:1200, showConfirmButton:false, toast:true, position:'top' });
   }
 
   // Tab/window protection
