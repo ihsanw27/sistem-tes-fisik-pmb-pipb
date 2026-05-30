@@ -15,6 +15,10 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module">
+    import { injectSpeedInsights } from 'https://cdn.jsdelivr.net/npm/@vercel/speed-insights@2.0.0/dist/index.mjs';
+    injectSpeedInsights();
+  </script>
   <style>
     :root { --bg-page: #f1f5f9; --bg-card: #ffffff; --text-main: #334155; --text-muted: #64748b; --accent: #4f46e5; --accent-soft: #e0e7ff; --success: #10b981; --danger: #ef4444; --border-soft: #e2e8f0; }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
