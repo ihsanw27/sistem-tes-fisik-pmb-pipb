@@ -840,10 +840,66 @@
 
   function gantiTugas() {
     let newRole = document.getElementById("pilih-tugas").value;
-    if (isBulkMode && bulkQueue.length > 0) {
-      Swal.fire({ title: 'Ganti Pos Tugas?', text: 'Terdapat antrean yang belum disimpan.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Hapus & Pindah', cancelButtonText: 'Batal' })
-        .then(r => { if (r.isConfirmed) { bulkQueue = []; renderBulkUI(); currentRole = newRole; resetUI(); } else { document.getElementById("pilih-tugas").value = currentRole; } });
-    } else { currentRole = newRole; resetUI(); }
+    if (newRole === currentRole) return; // no actual change
+
+    // Detect ANY unsaved work: bulk queue OR a single-form mid-entry.
+    // This matters most for Admin / multi-role users who switch posts —
+    // data entered for one post must NOT carry over to another.
+    const hasBulkWork = isBulkMode && bulkQueue.length > 0;
+    const singleFormOpen = !document.getElementById("form-nilai-single").classList.contains("hidden");
+    const hasUnsaved = hasBulkWork || singleFormOpen;
+
+    if (hasUnsaved) {
+      const detail = hasBulkWork
+        ? `<b>${bulkQueue.length} peserta</b> di antrean pos <b>${currentRole}</b> belum disimpan.`
+        : `Data yang sedang Anda isi untuk pos <b>${currentRole}</b> belum disimpan.`;
+      Swal.fire({
+        title: 'Pindah Pos Tugas?',
+        html: `${detail}<br><br>Pindah ke <b>${newRole}</b> akan <b>menghapus</b> data tersebut agar tidak tercampur antar pos.`,
+        icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444',
+        confirmButtonText: 'Hapus & Pindah', cancelButtonText: 'Batal'
+      }).then(r => {
+        if (r.isConfirmed) {
+          doGantiTugas(newRole);
+        } else {
+          // Revert dropdown to the current pos
+          document.getElementById("pilih-tugas").value = currentRole;
+        }
+      });
+    } else {
+      doGantiTugas(newRole);
+    }
+  }
+
+  // Perform the actual pos switch with a FULL clean slate — wipes in-memory
+  // queue, the saved localStorage draft, pending save timers, and the form.
+  function doGantiTugas(newRole) {
+    // Block any in-flight save, then wipe the draft completely
+    draftDestroyed = true;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    bulkQueue = [];
+    try {
+      Object.keys(localStorage).forEach(k => { if (k.startsWith('pmbDraft_')) localStorage.removeItem(k); });
+    } catch {}
+    // Scrub any temp values that leaked onto pesertaList objects
+    try {
+      pesertaList.forEach(p => {
+        delete p.tempM; delete p.tempK; delete p.tempH; delete p.tempB;
+        delete p.tempVal; delete p.tempCat; delete p.historyText;
+      });
+    } catch {}
+
+    currentRole = newRole;
+    renderBulkUI();
+    updateSaveStatus('clear');
+    document.getElementById("draft-banner").classList.add("hidden");
+    resetUI();
+
+    // Re-enable saving for the NEW pos on next tick
+    setTimeout(() => { draftDestroyed = false; }, 0);
+
+    Swal.fire({ icon:'success', title:`Pindah ke ${newRole}`, timer:1200, showConfirmButton:false, toast:true, position:'top' });
   }
 
   function savePrefs() {
