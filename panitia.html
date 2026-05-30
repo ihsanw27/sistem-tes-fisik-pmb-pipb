@@ -842,16 +842,21 @@
     let newRole = document.getElementById("pilih-tugas").value;
     if (newRole === currentRole) return; // no actual change
 
-    // Detect ANY unsaved work: bulk queue OR a single-form mid-entry.
+    // Detect ANY unsaved work across all three states:
+    //  1. Bulk queue has participants (collected, with or without values)
+    //  2. The bulk input form is open (mid-entry of values)
+    //  3. The single input form is open (viewing/entering one participant)
     // This matters most for Admin / multi-role users who switch posts —
     // data entered for one post must NOT carry over to another.
-    const hasBulkWork = isBulkMode && bulkQueue.length > 0;
+    const bulkFormOpen = !document.getElementById("form-nilai-bulk").classList.contains("hidden");
     const singleFormOpen = !document.getElementById("form-nilai-single").classList.contains("hidden");
+    const hasBulkWork = (isBulkMode && bulkQueue.length > 0) || bulkFormOpen;
     const hasUnsaved = hasBulkWork || singleFormOpen;
 
     if (hasUnsaved) {
+      const count = bulkQueue.length;
       const detail = hasBulkWork
-        ? `<b>${bulkQueue.length} peserta</b> di antrean pos <b>${currentRole}</b> belum disimpan.`
+        ? `<b>${count} peserta</b> di antrean pos <b>${currentRole}</b> belum disimpan.`
         : `Data yang sedang Anda isi untuk pos <b>${currentRole}</b> belum disimpan.`;
       Swal.fire({
         title: 'Pindah Pos Tugas?',
@@ -892,9 +897,21 @@
 
     currentRole = newRole;
     renderBulkUI();
+    // Clear the rendered bulk input cards (renderBulkUI only handles the queue list)
+    const bulkTable = document.getElementById("bulk-table-container");
+    if (bulkTable) bulkTable.innerHTML = "";
     updateSaveStatus('clear');
     document.getElementById("draft-banner").classList.add("hidden");
+
+    // Close any open input form and return to the scanner with a clean slate —
+    // otherwise the participant loaded for the OLD pos lingers in the new pos.
+    activeNo = "";
+    document.getElementById("form-nilai-single").classList.add("hidden");
+    document.getElementById("form-nilai-bulk").classList.add("hidden");
+    document.getElementById("area-scanner").classList.remove("hidden");
     resetUI();
+    if (qrScanner) { try { qrScanner.stop().catch(()=>{}); } catch(e){} }
+    qrScanner = new Html5Qrcode("reader"); initCam();
 
     // Re-enable saving for the NEW pos on next tick
     setTimeout(() => { draftDestroyed = false; }, 0);
