@@ -112,10 +112,13 @@
                 <i class="bi bi-arrow-repeat" id="s-icon"></i> <span id="s-text">Sync</span>
               </button>
             </div>
-            <div class="input-group input-group-sm mb-3 shadow-sm">
-              <input type="text" id="input-manual" class="form-control fw-bold py-2 border-0" placeholder="Ketik No. Peserta" onkeypress="handleManual(event)">
+            <div class="input-group input-group-sm shadow-sm">
+              <input type="text" id="input-manual" class="form-control fw-bold py-2 border-0" placeholder="Ketik No. Peserta atau Nama" onkeypress="handleManual(event)" oninput="liveSearch()" autocomplete="off">
               <button class="btn text-white fw-bold px-3" style="background: var(--text-main);" onclick="prosesManual()"><i class="bi bi-search"></i> Cari</button>
             </div>
+            <!-- Live name search results — vital when participant arrives without exam card -->
+            <div id="search-results" class="hidden mb-3 rounded-3 border shadow-sm" style="background:#fff; max-height:240px; overflow-y:auto;"></div>
+            <div class="mb-3"></div>
             <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
               <div class="form-check form-switch mb-0">
                 <input class="form-check-input mt-1" type="checkbox" id="mode-bulk" onchange="toggleBulk()">
@@ -199,6 +202,10 @@
           </div>
           <label class="form-label small fw-bold text-muted mb-1" id="lbl-catatan-single"><i class="bi bi-pencil-square me-1"></i> Catatan Khusus:</label>
           <textarea id="val-catatan-single" class="form-control border-0 shadow-sm" rows="2" placeholder="Tulis catatan di sini..."></textarea>
+          <!-- Delete medical note — only shown at Kesehatan post when a note already exists -->
+          <button id="btn-hapus-medis" onclick="hapusCatatanMedis()" class="btn btn-sm w-100 mt-2 fw-bold hidden" style="background:#fff5f5; color:var(--danger); border:1.5px solid var(--danger); border-radius:10px; font-size:0.8rem;">
+            <i class="bi bi-trash3 me-1"></i> Hapus Catatan Medis (salah input)
+          </button>
         </div>
 
         <div class="row g-2 mt-auto">
@@ -686,11 +693,68 @@
 
   function handleManual(e) { if (e.key === 'Enter') prosesManual(); }
 
+  // Live search by name OR number — shows tappable results.
+  // Critical for medical team: participant carried in without exam card,
+  // panitia types the name to find them.
+  let liveSearchTimer = null;
+  function liveSearch() {
+    clearTimeout(liveSearchTimer);
+    liveSearchTimer = setTimeout(() => {
+      const q = document.getElementById("input-manual").value.trim().toLowerCase();
+      const box = document.getElementById("search-results");
+      if (q.length < 2) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+
+      // Match by name OR participant number
+      const matches = pesertaList.filter(p =>
+        (p.nama && p.nama.toLowerCase().includes(q)) ||
+        (p.no && p.no.toLowerCase().includes(q))
+      ).slice(0, 12);
+
+      if (matches.length === 0) {
+        box.innerHTML = `<div class="p-3 text-center text-muted small">Tidak ada peserta cocok.<br><span style="font-size:0.7rem;">Peserta mungkin belum check-in.</span></div>`;
+        box.classList.remove("hidden");
+        return;
+      }
+
+      box.innerHTML = matches.map(p => {
+        const safeNama = (p.nama || '').replace(/'/g, "\\'");
+        return `<div onclick="selectFromSearch('${p.no}')" class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom" style="cursor:pointer;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fff'">
+          <span class="fw-bold" style="font-size:0.85rem;">${p.nama}</span>
+          <span class="badge rounded-pill" style="background:#e0e7ff;color:#4f46e5;font-size:0.7rem;">${p.no.toUpperCase()}</span>
+        </div>`;
+      }).join('');
+      box.classList.remove("hidden");
+    }, 250);
+  }
+
+  function selectFromSearch(no) {
+    document.getElementById("input-manual").value = "";
+    document.getElementById("search-results").classList.add("hidden");
+    document.getElementById("search-results").innerHTML = "";
+    const val = no.toLowerCase();
+    if (isBulkMode && bulkQueue.find(x => x.no.toLowerCase() === val)) {
+      return Swal.fire({ icon: 'info', text: 'Peserta sudah di antrean.', toast: true, position: 'top', showConfirmButton: false, timer: 2000 });
+    }
+    isScanningPaused = true;
+    if (!isBulkMode && qrScanner) { try { qrScanner.stop().catch(()=>{}); } catch(e) {} }
+    prosesDataScan(val);
+  }
+
   async function prosesManual() {
     let valRaw = document.getElementById("input-manual").value.trim();
-    if (!valRaw) return Swal.fire({ icon: 'warning', text: 'Ketik nomor peserta!', toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
+    if (!valRaw) return Swal.fire({ icon: 'warning', text: 'Ketik nomor peserta atau nama!', toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
+
+    // If it doesn't look like a participant number, treat as name search
+    const looksLikeNumber = /^[a-zA-Z0-9]+(-.*)?$/.test(valRaw) && !valRaw.includes(' ');
+    if (!looksLikeNumber) {
+      // It's a name — show search results instead of trying to check in directly
+      liveSearch();
+      return Swal.fire({ icon:'info', text:'Pilih peserta dari daftar hasil pencarian.', toast:true, position:'top', showConfirmButton:false, timer:1800 });
+    }
+
     let val = valRaw.split('-')[0].toLowerCase();
     document.getElementById("input-manual").value = "";
+    document.getElementById("search-results").classList.add("hidden");
     if (isBulkMode && bulkQueue.find(x => x.no.toLowerCase() === val)) return Swal.fire({ icon: 'info', text: 'Peserta sudah di antrean.', toast: true, position: 'top', showConfirmButton: false, timer: 2000 });
     isScanningPaused = true;
     if (!isBulkMode && qrScanner) { try { await qrScanner.stop(); } catch(e) {} }
@@ -976,6 +1040,8 @@
     document.getElementById("status-lolos").checked = false;
     document.getElementById("status-gagal").checked = false;
     document.getElementById("alert-existing").classList.add("hidden");
+    const btnHapusMedis = document.getElementById("btn-hapus-medis");
+    if (btnHapusMedis) btnHapusMedis.classList.add("hidden");
   }
 
   function initCam() {
@@ -1060,7 +1126,12 @@
       let dispVal = isLari ? `M:${exM}|K:${exK}|H:${exH}|B:${exB}` : (isKesehatan ? "Laporan Tercatat" : exVal);
       document.getElementById("txt-existing-info").innerHTML = `<b>Status: <span class="text-dark">${dispVal}</span></b><br>Oleh: ${exPan} <span class="text-muted">(${exWak})</span>`;
       if (isLari) { document.getElementById("lari-m-single").value = exM; document.getElementById("lari-k-single").value = exK; document.getElementById("lari-h-single").value = exH; document.getElementById("lari-b-single").value = exB; }
-      else if (isKesehatan) { document.getElementById("val-catatan-single").value = exVal; }
+      else if (isKesehatan) {
+        document.getElementById("val-catatan-single").value = exVal;
+        // Show delete button only when there's an existing medical note
+        const btnHapus = document.getElementById("btn-hapus-medis");
+        if (btnHapus) btnHapus.classList.toggle("hidden", !exVal || exVal === "");
+      }
       else { if (exVal.toLowerCase() === "lolos") document.getElementById("status-lolos").checked = true; else if (exVal.toLowerCase() === "tidak lolos") document.getElementById("status-gagal").checked = true; }
       if (!isKesehatan) document.getElementById("val-catatan-single").value = exCat;
     }
@@ -1106,6 +1177,37 @@
     if (t.includes("sempit")) return { lolos_sempit: status, catatan_sempit: cat, panitia_sempit: pan, timestamp_sempit: ts };
     if (t.includes("kesehatan")||t.includes("medis")) return { catatan_medis: cat, panitia_medis: pan, timestamp_medis: ts };
     return null;
+  }
+
+  // Clear a medical note (wrong entry). Not a silent delete — records WHO
+  // cleared it and WHEN, so accountability is preserved for any incident review.
+  async function hapusCatatanMedis() {
+    if (!activeNo) return;
+    const result = await Swal.fire({
+      icon:'warning', title:'Hapus Catatan Medis?',
+      html:'Catatan medis akan dikosongkan. Tindakan ini tercatat atas nama Anda.',
+      showCancelButton:true, confirmButtonColor:'#ef4444',
+      confirmButtonText:'Ya, Hapus', cancelButtonText:'Batal'
+    });
+    if (!result.isConfirmed) return;
+
+    const btn = document.getElementById("btn-hapus-medis");
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Menghapus...'; }
+
+    try {
+      // Clear note, but stamp who cleared it + when (accountability trail)
+      await sbPatch('peserta', 'nomor_peserta', activeNo, {
+        catatan_medis: '',
+        panitia_medis: `[dihapus oleh ${namaPanitiaLogin}]`,
+        timestamp_medis: new Date().toISOString()
+      });
+      await syncData(false);
+      Swal.fire({ icon:'success', title:'Catatan Dihapus', timer:1500, showConfirmButton:false, toast:true, position:'top' });
+      batal();
+    } catch(e) {
+      Swal.fire({ icon:'error', text:'Gagal menghapus catatan.', confirmButtonColor:'#4f46e5' });
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-trash3 me-1"></i> Hapus Catatan Medis (salah input)'; }
+    }
   }
 
   async function simpanSingle() {
