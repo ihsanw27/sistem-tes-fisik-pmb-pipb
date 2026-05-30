@@ -54,16 +54,18 @@
       <img src="https://i.ibb.co.com/TDsSQQ6B/IMG-1501-removebg-preview.png" alt="Logo Kampus" class="campus-logo">
       <h3 class="fw-bold mb-2" style="color: var(--text-main);">Check-In Peserta</h3>
       <p class="small mb-3 fw-medium" style="color: var(--text-muted);">Silakan scan QR dari Kartu Ujian Anda.</p>
-      <div id="reader" class="shadow-sm"></div>
-      <div class="d-flex justify-content-between align-items-center mb-3 px-1">
-        <button onclick="initCam()" class="btn btn-light border hidden px-3 py-2 fw-bold" id="btn-cam" style="color: var(--text-muted); font-size: 0.8rem; border-radius: 10px;">
-          <i class="bi bi-camera-video me-1"></i> Nyalakan Kamera
-        </button>
-        <div class="form-check form-switch mb-0 ms-auto d-flex align-items-center gap-2">
-          <label class="form-check-label small fw-bold text-muted" for="mode-mirror" style="font-size: 0.75rem;">Mirror</label>
-          <input class="form-check-input mt-0" type="checkbox" id="mode-mirror" onchange="toggleMirror()">
-        </div>
+      <div class="d-flex justify-content-end mb-2">
+        <label class="d-flex align-items-center gap-2 px-3 py-1 rounded-pill border"
+               style="background:#f4f7f9; cursor:pointer; font-size:0.75rem; font-weight:600; color:var(--text-muted); user-select:none;">
+          <i class="bi bi-camera-video" style="font-size:0.85rem;"></i>
+          Mirror
+          <input class="form-check-input mt-0" type="checkbox" id="mode-mirror"
+                 onchange="toggleMirror()" style="width:2.2em; height:1.2em; cursor:pointer;">
+        </label>
       </div>
+      <div id="reader" class="shadow-sm"></div>
+      <button onclick="initCam()" class="btn btn-light btn-custom w-100 border hidden mb-3" id="btn-cam"
+              style="color: var(--text-muted); font-size: 0.9rem;">Izinkan Akses Kamera</button>
       <div class="d-flex align-items-center my-3">
         <hr class="flex-grow-1" style="border-color: var(--border-soft);">
         <span class="px-3 small fw-bold text-muted" style="font-size: 0.7rem;">ATAU KETIK MANUAL</span>
@@ -109,7 +111,7 @@
         <h5 class="fw-bold mb-1" id="qr-nama" style="color: var(--text-main);">Nama Peserta</h5>
         <span class="badge rounded-pill mt-1 px-3 py-2 fw-semibold shadow-sm" style="background-color: #edf2ff; color: var(--accent); font-size: 0.9rem; border: 1px solid #dbe4ff;" id="qr-no-peserta">-</span>
       </div>
-      <button onclick="resetLayar()" class="btn btn-light fw-bold w-100 rounded-pill py-3" style="color: var(--text-main); background: #ffffff; border: 2px solid var(--border-soft); box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+      <button id="btn-back-success" onclick="resetLayar()" class="btn btn-light fw-bold w-100 rounded-pill py-3" style="color: var(--text-main); background: #ffffff; border: 2px solid var(--border-soft); box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
         <i class="bi bi-arrow-left me-1"></i> Kembali
       </button>
     </div>
@@ -226,6 +228,9 @@
       btnManual.disabled = false;
     }
 
+    let autoResetTimer = null;
+    let countdownTimer = null;
+
     function tampilkanSukses(nomor, namaPeserta, linkFoto) {
       document.getElementById("view-form").classList.add("hidden");
       document.getElementById("view-confirm").classList.add("hidden");
@@ -238,16 +243,29 @@
       } else {
         elFoto.classList.add("hidden"); elAvatar.classList.remove("hidden");
       }
+
+      // Auto-reset after 8s — protects next applicant's privacy on shared kiosk
+      let remaining = 8;
+      const btnBack = document.getElementById("btn-back-success");
+      if (btnBack) btnBack.innerHTML = `<i class="bi bi-arrow-left me-1"></i> Kembali (otomatis ${remaining}s)`;
+      clearInterval(countdownTimer);
+      countdownTimer = setInterval(() => {
+        remaining--;
+        if (btnBack && remaining > 0) btnBack.innerHTML = `<i class="bi bi-arrow-left me-1"></i> Kembali (otomatis ${remaining}s)`;
+      }, 1000);
+      clearTimeout(autoResetTimer);
+      autoResetTimer = setTimeout(() => resetLayar(), 8000);
     }
 
     function resetLayar() {
+      clearTimeout(autoResetTimer);
+      clearInterval(countdownTimer);
       tempID = "";
       document.getElementById("noPeserta").value = "";
       document.getElementById("qr-foto").src = "";
       document.getElementById("view-success").classList.add("hidden");
       document.getElementById("view-confirm").classList.add("hidden");
       document.getElementById("view-form").classList.remove("hidden");
-      document.getElementById("noPeserta").focus();
       isScanningPaused = false;
     }
   </script>

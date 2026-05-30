@@ -94,7 +94,7 @@
         <button onclick="toggleLivestream()" id="btn-livestream" class="btn btn-light rounded-circle border p-2 text-primary" title="Mode Livestream"><i class="bi bi-display"></i></button>
         <button onclick="loadData()" id="btn-refresh" class="btn btn-light rounded-circle border p-2" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
         <button onclick="exportCSV()" class="btn btn-light rounded-circle border p-2 text-success" title="Export CSV"><i class="bi bi-download"></i></button>
-        <button onclick="logout()" class="btn btn-light rounded-circle border p-2 text-danger" title="Keluar"><i class="bi bi-power"></i></button>
+        <button id="btn-logout" onclick="logout()" class="btn btn-light rounded-circle border p-2 text-danger" title="Keluar"><i class="bi bi-power"></i></button>
       </div>
     </div>
 
@@ -381,34 +381,70 @@
     }
 
     async function logout() {
-      // Show login screen immediately — don't wait for signOut round-trip
+      const btn = document.getElementById("btn-logout");
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       clearRoleCache();
       stopRealtime();
       clearInterval(liveInterval);
-      showLogin();
-      sb.auth.signOut(); // fire and forget — SIGNED_OUT event still fires for cleanup
+      await sb.auth.signOut();
+      window.location.replace(window.location.pathname);
     }
 
     // ── INIT ────────────────────────────────────────────
-  // Strategy: getSession() reads localStorage instantly (no network) → 
-  // decide no-session/has-session before Supabase's internal token-refresh
-  // completes. onAuthStateChange only handles post-initial events.
-  (async () => {
-    const { data: { session } } = await sb.auth.getSession();
+    // Two-phase startup:
+    // Phase 1 (sync, 0ms): read Supabase localStorage directly — no network,
+    //   no await. If session+role cache both exist → render app immediately.
+    // Phase 2 (async, background): validate token server-side, refresh cache.
+    // onAuthStateChange handles: OAuth redirect, cross-tab logout, expiry.
 
-    if (!session) {
-      // Definitely not logged in — show login immediately, no spinner
-      showLogin();
-    } else {
-      // Has a session in localStorage — enter immediately via fast-path
-      // Background: onAuthStateChange will validate the token server-side
+    function readLocalSession() {
+      try {
+        // Supabase v2 key format: sb-<projectRef>-auth-token
+        const ref = SUPABASE_URL.match(/\/\/(.+?)\.supabase/)?.[1];
+        if (!ref) return null;
+        const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+        if (!raw) return null;
+        const s = JSON.parse(raw);
+        if (!s?.access_token || !s?.user?.email) return null;
+        // Reject if expired (with 5 min buffer for clock skew)
+        if (s.expires_at && s.expires_at * 1000 < Date.now() + 300_000) return null;
+        return s;
+      } catch { return null; }
+    }
+
+    (async () => {
+      // ── Phase 1: synchronous fast-path ──────────────
+      const localSess = readLocalSession();
+
+      if (!localSess) {
+        // No valid local session at all — show login immediately (no spinner)
+        showLogin();
+        return;
+      }
+
+      const localEmail = localSess.user.email;
+      const cachedRole = getRoleCache(localEmail);
+
+      if (cachedRole && !_authGuard) {
+        // Have session + role cache → enter app INSTANTLY (synchronous path)
+        _authGuard = true;
+        hideLoader();
+        await validateAndEnter(localSess.user, true);
+        // Background phase 2 happens inside validateAndEnter (skipServerCheck=true)
+        return;
+      }
+
+      // ── Phase 2: async path (first login or expired cache) ───────────
+      // Need DB fetch for role — must go async. Show loading.
       if (!_authGuard) {
         _authGuard = true;
-        setLoadingMsg(`Halo, ${session.user.user_metadata?.name || session.user.email}...`);
+        setLoadingMsg(`Halo, ${localSess.user.user_metadata?.name || localEmail}...`);
+        // getSession() may trigger token refresh network call — but UI shows name already
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) { showLogin(); _authGuard = false; return; }
         await validateAndEnter(session.user, true);
       }
-    }
-  })();
+    })();
 
   // Handles: OAuth redirect (SIGNED_IN), cross-tab logout (SIGNED_OUT),
   // token expiry, user updates. NOT used for initial page load.
@@ -525,7 +561,14 @@
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
             isRealtimeActive = true;
-            updateRealtimePill(true);
+            updateRealtimePill('live');
+            loadData(false); // resync on (re)connect — catch anything missed while down
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Connection dropped — Supabase auto-reconnects, show honest status
+            updateRealtimePill('reconnecting');
+          } else if (status === 'CLOSED') {
+            isRealtimeActive = false;
+            updateRealtimePill('paused');
           }
         });
     }
@@ -536,7 +579,7 @@
         realtimeChannel = null;
       }
       isRealtimeActive = false;
-      updateRealtimePill(false);
+      updateRealtimePill('paused');
     }
 
     function toggleRealtime() {
@@ -550,17 +593,26 @@
       }
     }
 
-    function updateRealtimePill(active) {
+    function updateRealtimePill(state) {
+      // state: 'live' | 'reconnecting' | 'paused'  (boolean true/false also accepted)
+      if (state === true) state = 'live';
+      if (state === false) state = 'paused';
       const dot = document.getElementById("realtime-dot");
       const label = document.getElementById("realtime-label");
       const pill = document.getElementById("realtime-pill");
       if (!dot || !label) return;
-      if (active) {
+      if (state === 'live') {
         dot.style.background = "#10b981";
         dot.style.boxShadow = "0 0 0 3px rgba(16,185,129,0.25)";
         label.innerText = "LIVE";
         label.style.color = "#10b981";
         pill.style.borderColor = "#10b981";
+      } else if (state === 'reconnecting') {
+        dot.style.background = "#f59e0b";
+        dot.style.boxShadow = "0 0 0 3px rgba(245,158,11,0.25)";
+        label.innerText = "MENYAMBUNG...";
+        label.style.color = "#d97706";
+        pill.style.borderColor = "#f59e0b";
       } else {
         dot.style.background = "#94a3b8";
         dot.style.boxShadow = "none";

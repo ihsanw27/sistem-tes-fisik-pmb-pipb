@@ -91,7 +91,7 @@
         <a href="dashboard" class="btn btn-light border shadow-sm d-flex align-items-center justify-content-center" style="width:40px; height:40px; color:var(--accent); text-decoration:none;" title="Buka Dashboard Monitor">
           <i class="bi bi-speedometer2"></i>
         </a>
-        <button onclick="logout()" class="btn btn-light rounded-circle border d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px; color: var(--danger); background: #fff5f5;">
+        <button id="btn-logout" onclick="logout()" class="btn btn-light rounded-circle border d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px; color: var(--danger); background: #fff5f5;">
           <i class="bi bi-power"></i>
         </button>
       </div>
@@ -274,6 +274,7 @@
 
   let qrScanner, activeNo = "", pesertaList = [], intervalSync;
   let isBulkMode = false, bulkQueue = [], isScanningPaused = false, currentRole = "";
+  let pesertaChannel = null;
   let namaPanitiaLogin = "";
   let userEmail = "";
 
@@ -427,6 +428,21 @@
     intervalSync = setInterval(() => {
       if (!document.getElementById("view-dashboard").classList.contains("hidden")) syncData(false);
     }, 60000);
+
+    // Realtime: instantly refresh peserta list when kiosk checks someone in,
+    // or another panitia saves a result. Falls back to 60s polling above.
+    if (!pesertaChannel) {
+      pesertaChannel = sb
+        .channel('panitia-peserta-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'peserta' }, () => {
+          // Only resync when not actively filling a form (avoid disrupting input)
+          if (!document.getElementById("form-nilai-single").classList.contains("hidden")) return;
+          if (!document.getElementById("form-nilai-bulk").classList.contains("hidden")) return;
+          syncData(false);
+        })
+        .subscribe();
+    }
+
     checkDraftBanner();
     // Fetch peserta list in background — scanner is already live
     syncData(false);
@@ -449,35 +465,71 @@
   }
 
   async function logout() {
-    // Show login screen immediately — don't wait for signOut round-trip
+    const btn = document.getElementById("btn-logout");
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
     clearRoleCache();
-    clearInterval(intervalSync);
     clearTimeout(draftSaveTimer);
+    clearInterval(intervalSync);
+    if (pesertaChannel) { try { sb.removeChannel(pesertaChannel); } catch(e){} pesertaChannel = null; }
     bulkQueue = [];
-    showLogin();
-    // Cleanup happens in background
-    if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }
-    sb.auth.signOut(); // fire and forget — SIGNED_OUT will still fire
+    try { if (qrScanner) await qrScanner.stop(); } catch(e) {}
+    await sb.auth.signOut();
+    window.location.replace(window.location.pathname);
   }
 
   // ── INIT ────────────────────────────────────────────
-  // Strategy: getSession() reads localStorage instantly (no network) → 
-  // decide no-session/has-session before Supabase's internal token-refresh
-  // completes. onAuthStateChange only handles post-initial events.
-  (async () => {
-    const { data: { session } } = await sb.auth.getSession();
+  // Two-phase startup:
+  // Phase 1 (sync, 0ms): read Supabase localStorage directly — no network,
+  //   no await. If session+role cache both exist → render app immediately.
+  // Phase 2 (async, background): validate token server-side, refresh cache.
+  // onAuthStateChange handles: OAuth redirect, cross-tab logout, expiry.
 
-    if (!session) {
-      // Definitely not logged in — show login immediately, no spinner
+  function readLocalSession() {
+    try {
+      // Supabase v2 key format: sb-<projectRef>-auth-token
+      const ref = SUPABASE_URL.match(/\/\/(.+?)\.supabase/)?.[1];
+      if (!ref) return null;
+      const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (!s?.access_token || !s?.user?.email) return null;
+      // Reject if expired (with 5 min buffer for clock skew)
+      if (s.expires_at && s.expires_at * 1000 < Date.now() + 300_000) return null;
+      return s;
+    } catch { return null; }
+  }
+
+  (async () => {
+    // ── Phase 1: synchronous fast-path ──────────────
+    const localSess = readLocalSession();
+
+    if (!localSess) {
+      // No valid local session at all — show login immediately (no spinner)
       showLogin();
-    } else {
-      // Has a session in localStorage — enter immediately via fast-path
-      // Background: onAuthStateChange will validate the token server-side
-      if (!_authGuard) {
-        _authGuard = true;
-        setLoadingMsg(`Halo, ${session.user.user_metadata?.name || session.user.email}...`);
-        await validateAndEnter(session.user, true);
-      }
+      return;
+    }
+
+    const localEmail = localSess.user.email;
+    const cachedRole = getRoleCache(localEmail);
+
+    if (cachedRole && !_authGuard) {
+      // Have session + role cache → enter app INSTANTLY (synchronous path)
+      // Don't hideLoader() here — validateAndEnter hides it once the correct
+      // view (dashboard or Management modal) is ready, avoiding a blank flash.
+      _authGuard = true;
+      await validateAndEnter(localSess.user, true);
+      return;
+    }
+
+    // ── Phase 2: async path (first login or expired cache) ───────────
+    // Need DB fetch for role — must go async. Show loading.
+    if (!_authGuard) {
+      _authGuard = true;
+      setLoadingMsg(`Halo, ${localSess.user.user_metadata?.name || localEmail}...`);
+      // getSession() may trigger token refresh network call — but UI shows name already
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { showLogin(); _authGuard = false; return; }
+      await validateAndEnter(session.user, true);
     }
   })();
 
