@@ -700,6 +700,22 @@
     savePrefs();
     document.getElementById("bulk-info").classList.toggle("hidden", !isBulkMode);
     if (!isBulkMode) { bulkQueue = []; renderBulkUI(); }
+
+    // Gentle warning for medical team — bulk is built for high-throughput
+    // (tes lari), while medical reporting is individual and detail-sensitive.
+    const t = (document.getElementById("pilih-tugas").value || "").toLowerCase();
+    const isKesehatan = t.includes("kesehatan") || t.includes("medis");
+    if (isBulkMode && isKesehatan) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Mode Banyak untuk Pos Medis',
+        html: 'Mode ini dirancang untuk input cepat banyak peserta (mis. tes lari).<br><br>' +
+              'Untuk pencatatan medis yang butuh ketelitian per individu, <b>mode satuan lebih disarankan</b>. ' +
+              'Anda tetap bisa lanjut jika memang perlu.',
+        confirmButtonText: 'Saya Mengerti',
+        confirmButtonColor: '#4f46e5'
+      });
+    }
   }
 
   function toggleMirror() {
@@ -1156,6 +1172,44 @@
     document.getElementById("form-nilai-single").classList.remove("hidden");
   }
 
+  // Delete a medical note from within bulk mode. Same accountability trail
+  // as single mode (records who cleared it). Removes the card from the queue
+  // afterward since there's nothing left to input for that participant.
+  async function hapusCatatanMedisBulk(no, idx) {
+    const result = await Swal.fire({
+      icon:'warning', title:'Hapus Catatan Medis?',
+      html:'Catatan medis akan dikosongkan. Tindakan ini tercatat atas nama Anda.',
+      showCancelButton:true, confirmButtonColor:'#ef4444',
+      confirmButtonText:'Ya, Hapus', cancelButtonText:'Batal'
+    });
+    if (!result.isConfirmed) return;
+
+    const fields = {
+      catatan_medis: '',
+      panitia_medis: `[dihapus oleh ${namaPanitiaLogin}]`,
+      timestamp_medis: new Date().toISOString()
+    };
+
+    try {
+      await sbPatch('peserta', 'nomor_peserta', no, fields);
+      patchLocalPeserta(no, fields); // sync local memory immediately
+      // Remove this participant from the bulk queue (nothing left to enter)
+      bulkQueue = bulkQueue.filter(x => x.no.toLowerCase() !== no.toLowerCase());
+      Swal.fire({ icon:'success', title:'Catatan Dihapus', timer:1200, showConfirmButton:false, toast:true, position:'top' });
+      // Re-render the bulk list. If queue now empty, go back to scanner.
+      if (bulkQueue.length === 0) {
+        wipeAllDraftNow();
+        batal();
+      } else {
+        renderBulkUI();
+        mulaiInputBulk(); // rebuild cards without the removed one
+      }
+      syncData(false); // background full resync
+    } catch(e) {
+      Swal.fire({ icon:'error', text:'Gagal menghapus catatan.', confirmButtonColor:'#4f46e5' });
+    }
+  }
+
   function mulaiInputBulk() {
     if (bulkQueue.length === 0) return Swal.fire('Kosong', 'Belum ada peserta di antrean.', 'warning');
     try { qrScanner.stop(); } catch(e) {}
@@ -1178,7 +1232,13 @@
       const restoredBadge = hasFilled
         ? `<div class="d-inline-flex align-items-center gap-1 mb-2 px-2 py-1 rounded-2 fw-bold" style="background:#d1fae5;color:#065f46;font-size:0.65rem;"><i class="bi bi-floppy-fill"></i> Nilai dipulihkan dari draft</div>`
         : '';
-      container.innerHTML += `<div class="bulk-item-card${hasFilled?' draft-filled':''}"><div class="bulk-item-header"><span>${idx+1}. ${p.nama}</span><span class="fw-normal" style="font-size:0.75rem;opacity:0.7;">No: ${p.no.toUpperCase()}</span>${generateProgressHTML(p)}</div>${restoredBadge}${historyHTML}${inputHTML}<textarea id="bulk-cat-${idx}" oninput="saveDraft()" class="form-control form-control-sm border-0 shadow-sm bg-light" rows="2" placeholder="${isKesehatan?'Detail keluhan medis...':'Catatan tambahan...'}">${savedCat}</textarea></div>`;
+      // Medical delete button — only at Kesehatan post AND only when this
+      // participant already has a saved medical note in the database.
+      const hasMedisNote = isKesehatan && p.medis && p.medis !== '';
+      const deleteBtn = hasMedisNote
+        ? `<button onclick="hapusCatatanMedisBulk('${p.no}', ${idx})" class="btn btn-sm w-100 mt-2 fw-bold" style="background:#fff5f5;color:var(--danger);border:1.5px solid var(--danger);border-radius:8px;font-size:0.72rem;"><i class="bi bi-trash3 me-1"></i> Hapus Catatan Medis (salah input)</button>`
+        : '';
+      container.innerHTML += `<div class="bulk-item-card${hasFilled?' draft-filled':''}"><div class="bulk-item-header"><span>${idx+1}. ${p.nama}</span><span class="fw-normal" style="font-size:0.75rem;opacity:0.7;">No: ${p.no.toUpperCase()}</span>${generateProgressHTML(p)}</div>${restoredBadge}${historyHTML}${inputHTML}<textarea id="bulk-cat-${idx}" oninput="saveDraft()" class="form-control form-control-sm border-0 shadow-sm bg-light" rows="2" placeholder="${isKesehatan?'Detail keluhan medis...':'Catatan tambahan...'}">${savedCat}</textarea>${deleteBtn}</div>`;
     });
 
     document.getElementById("area-scanner").classList.add("hidden");
