@@ -43,6 +43,10 @@
 </head>
 <body>
 
+  <div id="net-banner" class="hidden" style="position:fixed;top:0;left:0;right:0;z-index:9998;background:#dc2626;color:#fff;text-align:center;padding:10px 16px;font-weight:600;font-size:0.85rem;">
+    <i class="bi bi-wifi-off me-1"></i><span id="net-banner-text">Koneksi terputus.</span>
+  </div>
+
   <!-- Auth loading overlay -->
   <div id="auth-loading" style="position:fixed;inset:0;background:#e8eef2;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
     <img src="/logo.png" style="height:60px;margin-bottom:24px;object-fit:contain;" alt="">
@@ -199,6 +203,18 @@
 
     const { createClient } = supabase;
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    function showNetBanner(msg) {
+      const b = document.getElementById("net-banner"), t = document.getElementById("net-banner-text");
+      if (t && msg) t.innerText = msg;
+      if (b) b.classList.remove("hidden");
+    }
+    function hideNetBanner() {
+      const b = document.getElementById("net-banner");
+      if (b) b.classList.add("hidden");
+    }
+    window.addEventListener('offline', () => showNetBanner('Tidak ada koneksi internet — data mungkin tidak terkini.'));
+    window.addEventListener('online', () => { showNetBanner('Koneksi kembali — memuat ulang...'); loadData(false).finally(()=>setTimeout(hideNetBanner,1500)); });
 
     // ── Role cache helpers (module scope) ──────────────────────────────
     const ROLE_TTL_MS = 60 * 60 * 1000; // 60 minutes

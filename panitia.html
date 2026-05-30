@@ -60,6 +60,12 @@
   <p class="mt-3 fw-semibold text-muted small" id="auth-loading-msg">Memeriksa sesi...</p>
 </div>
 
+<!-- Connection-lost banner: appears when a write fails or browser goes offline -->
+<div id="net-banner" class="hidden" style="position:fixed; top:0; left:0; right:0; z-index:9998; background:#dc2626; color:#fff; text-align:center; padding:10px 16px; font-weight:600; font-size:0.85rem; box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+  <i class="bi bi-wifi-off me-1"></i>
+  <span id="net-banner-text">Koneksi terputus — data tersimpan lokal, akan dicoba lagi.</span>
+</div>
+
 <div class="app-container">
 
   <!-- LOGIN -->
@@ -615,6 +621,32 @@
     }
   });
 
+  // ── CONNECTION STATUS ─────────────────────────────
+  let netBannerTimer = null;
+  function showNetBanner(msg) {
+    const b = document.getElementById("net-banner");
+    const t = document.getElementById("net-banner-text");
+    if (!b) return;
+    if (t && msg) t.innerText = msg;
+    b.classList.remove("hidden");
+    document.body.style.paddingTop = "42px"; // push content down so banner doesn't cover navbar
+  }
+  function hideNetBanner() {
+    const b = document.getElementById("net-banner");
+    if (!b) return;
+    b.classList.add("hidden");
+    document.body.style.paddingTop = "";
+  }
+  // Browser-level offline/online events
+  window.addEventListener('offline', () => showNetBanner('Tidak ada koneksi internet — data tersimpan lokal.'));
+  window.addEventListener('online', () => {
+    showNetBanner('Koneksi kembali — menyinkronkan...');
+    if (netBannerTimer) clearTimeout(netBannerTimer);
+    syncData(false).finally(() => {
+      netBannerTimer = setTimeout(hideNetBanner, 1500);
+    });
+  });
+
   // ── SUPABASE HELPERS ──────────────────────────────
   async function sbGet(table, filters) {
     let q = sb.from(table).select('*');
@@ -626,7 +658,13 @@
 
   async function sbPatch(table, matchCol, matchVal, body) {
     const { error } = await sb.from(table).update(body).eq(matchCol, matchVal);
-    if (error) throw error;
+    if (error) {
+      // Network/DB write failed — flag it so panitia know to retry
+      showNetBanner('Gagal menyimpan ke server — periksa koneksi & coba lagi.');
+      throw error;
+    }
+    // Success — if banner was showing due to a prior failure, clear it
+    hideNetBanner();
   }
 
   function formatWaktu(iso) {
@@ -1345,15 +1383,29 @@
     let btnBulk = document.getElementById("btn-simpan-bulk");
     btnBulk.disabled = true; btnBulk.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Mengupload...`;
 
-    // Lock draft saves NOW — during the async upload loop, no debounce can
+    // Harvest current form values into bulkQueue temp* FIRST, so if some rows
+    // fail and we rebuild their cards, the entered values are still there.
+    harvestFormValues();
+
+    // Lock draft saves NOW — during the async upload, no debounce can
     // resurrect the draft we're about to clear on success.
     draftDestroyed = true;
     clearTimeout(draftSaveTimer);
     draftSaveTimer = null;
 
-    let gagal = 0;
-    for (let u of updates) { try { await sbPatch('peserta','nomor_peserta',u.no,u.payload); } catch(e) { gagal++; } }
-    await syncData(false);
+    // Parallel upload — all rows fire at once instead of one-by-one.
+    // 20 rows drops from ~4s (sequential) to ~0.5s. Promise.allSettled means
+    // one failure doesn't abort the rest; we collect exactly which ones failed.
+    const results = await Promise.allSettled(
+      updates.map(u => sbPatch('peserta', 'nomor_peserta', u.no, u.payload).then(() => {
+        patchLocalPeserta(u.no, u.payload); // update local memory on each success
+      }))
+    );
+
+    // Identify failed rows by index so we can keep ONLY those in the queue
+    const failedNos = [];
+    results.forEach((r, i) => { if (r.status === 'rejected') failedNos.push(updates[i].no); });
+    const gagal = failedNos.length;
 
     if (gagal === 0) {
       // Full success — wipe draft synchronously and return to scanner
@@ -1366,12 +1418,27 @@
       if (qrScanner) { try { qrScanner.stop().catch(()=>{}); } catch(e){} }
       qrScanner = new Html5Qrcode("reader"); initCam();
       setTimeout(() => { draftDestroyed = false; }, 0);
+      hideNetBanner();
       Swal.fire({ icon:'success', title:`${updates.length} data tersimpan!`, timer:2000, showConfirmButton:false, toast:true, position:'top' });
+      syncData(false); // background full resync
     } else {
-      // Partial failure — keep the draft so panitia can retry the failed ones
+      // Partial failure — KEEP ONLY the failed rows in the queue for easy retry.
+      // Successful ones are already saved; no point re-uploading them.
+      const failedSet = new Set(failedNos.map(n => n.toLowerCase()));
+      bulkQueue = bulkQueue.filter(p => failedSet.has(p.no.toLowerCase()));
       draftDestroyed = false;
-      saveDraftImmediate(); // re-persist current state
-      Swal.fire({ icon:'warning', title:`${updates.length-gagal} berhasil, ${gagal} gagal`, text:'Draft tetap disimpan. Coba upload ulang yang gagal.', confirmButtonColor:'#4f46e5' });
+      saveDraftImmediate(); // persist the reduced queue (only failures)
+      showNetBanner(`${gagal} data gagal terkirim — periksa koneksi, lalu Upload lagi.`);
+      Swal.fire({
+        icon:'warning',
+        title:`${updates.length - gagal} berhasil, ${gagal} gagal`,
+        html:`Yang gagal tetap di antrean untuk diupload ulang.<br><small>Sukses sudah tersimpan & tidak akan dobel.</small>`,
+        confirmButtonColor:'#4f46e5'
+      });
+      // Rebuild the bulk cards showing only the failed rows
+      renderBulkUI();
+      mulaiInputBulk();
+      syncData(false);
     }
 
     btnBulk.disabled = false; btnBulk.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i> UPLOAD SEMUA`;
