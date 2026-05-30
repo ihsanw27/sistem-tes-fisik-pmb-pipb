@@ -884,8 +884,14 @@
       try { if (el.value !== undefined) el.value = ''; } catch(e){}
     });
 
-    // 3. Wipe memory
+    // 3. Wipe memory + scrub any temp* props that leaked onto pesertaList objects
     bulkQueue = [];
+    try {
+      pesertaList.forEach(p => {
+        delete p.tempM; delete p.tempK; delete p.tempH; delete p.tempB;
+        delete p.tempVal; delete p.tempCat; delete p.historyText;
+      });
+    } catch(e) {}
 
     // 4. Nuke ALL draft keys synchronously
     try {
@@ -1035,7 +1041,10 @@
         if (!isLari && !isKesehatan) p.tempVal = exVal;
         p.historyText = `Oleh ${exPan} pada ${exWak}`;
       } else { p.historyText = ""; p.tempVal = ""; p.tempCat = ""; }
-      bulkQueue.push(p); renderBulkUI();
+      // Push a COPY — never the live pesertaList reference. Otherwise temp*
+      // values written during input stick to pesertaList and "resurrect" the
+      // draft on the next scan even after a wipe.
+      bulkQueue.push({ ...p }); renderBulkUI();
       Swal.fire({ icon: isFilled ? 'info' : 'success', title: isFilled ? 'Sudah Ada Data!' : 'Masuk Antrean', text: p.nama, timer: 1200, toast: true, position: 'top', showConfirmButton: false });
       setTimeout(() => { isScanningPaused = false; }, 1300);
       return;
