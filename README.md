@@ -12,7 +12,7 @@ Sistem terdiri dari **3 halaman**:
 
 | Halaman | URL | Untuk siapa | Fungsi |
 |---|---|---|---|
-| **Check-in** | `/` atau `/checkin` | Peserta (mandiri) | Scan QR kartu ujian untuk absen kehadiran |
+| **Check-in** | `/` | Peserta (mandiri) | Scan QR kartu ujian untuk absen kehadiran |
 | **Panitia** | `/panitia` | Panitia pos tes | Input nilai tes (lari, ketinggian, dll) via scan |
 | **Dashboard** | `/dashboard` | Panitia & pimpinan | Monitor progres real-time + ekspor data |
 

@@ -16,7 +16,7 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --bg-page: #f1f5f9; --bg-card: #ffffff; --text-main: #334155; --text-muted: #64748b; --accent: #4f46e5; --accent-soft: #e0e7ff; --success: #10b981; --danger: #ef4444; --border-soft: #e2e8f0; }
+    :root { --bg-page: #f1f5f9; --bg-card: #ffffff; --text-main: #334155; --text-muted: #64748b; --accent: #4f46e5; --accent-soft: #e0e7ff; --success: #10b981; --danger: #ef4444; --border-soft: #e2e8f0; --bg-inner: #f8fafc; }
 
     [data-theme="dark"] {
       --bg-page: #0f172a;
@@ -27,7 +27,7 @@
       --accent-soft: #312e81;
       --success: #34d399;
       --danger: #f87171;
-      --border-soft: #334155;
+      --border-soft: #334155; --bg-inner: #0f172a;
     }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
     .app-container { max-width: 500px; margin: 0 auto; padding: 15px; min-height: 100vh; display: flex; flex-direction: column; }
@@ -62,7 +62,23 @@
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .spin { display: inline-block; animation: spin 0.9s linear infinite; }
     .save-chip { font-size: 0.7rem; font-weight: 600; transition: color 0.3s; }
-  </style>
+  
+    /* Dark mode: force Bootstrap light utilities + form fields to adapt */
+    [data-theme="dark"] .bg-light { background-color: var(--bg-inner) !important; }
+    [data-theme="dark"] .bg-white { background-color: var(--bg-card) !important; }
+    [data-theme="dark"] .text-dark { color: var(--text-main) !important; }
+    [data-theme="dark"] .form-control,
+    [data-theme="dark"] .form-select { background: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
+    [data-theme="dark"] .form-control::placeholder { color: var(--text-muted); }
+    [data-theme="dark"] .card { background-color: var(--bg-card); }
+    [data-theme="dark"] .table { color: var(--text-main); }
+    [data-theme="dark"] .table th { background-color: var(--bg-inner); color: var(--text-muted); }
+    [data-theme="dark"] .table td { border-color: var(--border-soft); }
+    [data-theme="dark"] .btn-light { background-color: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
+    [data-theme="dark"] .input-group-text { background: var(--bg-inner); color: var(--text-muted); border-color: var(--border-soft); }
+    [data-theme="dark"] .border { border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .border-top { border-color: var(--border-soft) !important; }
+</style>
 </head>
 <body>
   <!-- Dark mode toggle -->

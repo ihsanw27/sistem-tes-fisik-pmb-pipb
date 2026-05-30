@@ -13,7 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --bg-page: #e8eef2; --bg-card: #fdfdfd; --text-main: #334155; --text-muted: #64748b; --accent: #5b7cfa; --accent-soft: #edf2ff; --success: #38d9a9; --danger: #ff8787; --warning: #fcc419; --info: #4dabf7; --purple: #845ef7; --border-soft: #dce4ec; }
+    :root { --bg-page: #e8eef2; --bg-card: #fdfdfd; --text-main: #334155; --text-muted: #64748b; --accent: #5b7cfa; --accent-soft: #edf2ff; --success: #38d9a9; --danger: #ff8787; --warning: #fcc419; --info: #4dabf7; --purple: #845ef7; --border-soft: #dce4ec; --bg-inner: #f8fafc; }
 
     [data-theme="dark"] {
       --bg-page: #0f172a;
@@ -27,7 +27,7 @@
       --warning: #fbbf24;
       --info: #60a5fa;
       --purple: #a78bfa;
-      --border-soft: #334155;
+      --border-soft: #334155; --bg-inner: #0f172a;
     }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; display: flex; flex-direction: column; }
     .login-wrapper { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
@@ -54,7 +54,23 @@
     .link-detail:hover { opacity: 0.7; text-decoration: underline; }
     .photo-thumb-modal { width: 120px; height: 120px; object-fit: cover; border-radius: 15px; border: 3px solid var(--accent-soft); margin: 0 auto 15px; display: block; }
     .user-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-soft); }
-  </style>
+  
+    /* Dark mode: force Bootstrap light utilities + form fields to adapt */
+    [data-theme="dark"] .bg-light { background-color: var(--bg-inner) !important; }
+    [data-theme="dark"] .bg-white { background-color: var(--bg-card) !important; }
+    [data-theme="dark"] .text-dark { color: var(--text-main) !important; }
+    [data-theme="dark"] .form-control,
+    [data-theme="dark"] .form-select { background: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
+    [data-theme="dark"] .form-control::placeholder { color: var(--text-muted); }
+    [data-theme="dark"] .card { background-color: var(--bg-card); }
+    [data-theme="dark"] .table { color: var(--text-main); }
+    [data-theme="dark"] .table th { background-color: var(--bg-inner); color: var(--text-muted); }
+    [data-theme="dark"] .table td { border-color: var(--border-soft); }
+    [data-theme="dark"] .btn-light { background-color: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
+    [data-theme="dark"] .input-group-text { background: var(--bg-inner); color: var(--text-muted); border-color: var(--border-soft); }
+    [data-theme="dark"] .border { border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .border-top { border-color: var(--border-soft) !important; }
+</style>
 </head>
 <body>
   <!-- Dark mode toggle -->

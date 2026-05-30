@@ -24,39 +24,59 @@
       --accent-hover: #4c6ef5;
       --success: #38d9a9;
       --border-soft: #dce4ec;
+      --bg-inner: #f8fafc;
+      --accent-soft: #edf2ff;
     }
 
     [data-theme="dark"] {
       --bg-page: #0f172a;
       --bg-card: #1e293b;
       --text-main: #e2e8f0;
-      --text-muted: #94a3b8;
+      --text-muted: #a8b3c4;
       --accent: #818cf8;
       --accent-hover: #6366f1;
       --success: #34d399;
       --border-soft: #334155;
+      --bg-inner: #0f172a;
+      --accent-soft: #312e81;
     }
     body { background: var(--bg-page); color: var(--text-main); font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
-    .kiosk-container { background: var(--bg-card); border-radius: 28px; padding: 40px 30px; box-shadow: 0 20px 40px -10px rgba(100,116,139,0.1); width: 100%; max-width: 420px; text-align: center; border: 1px solid #ffffff; }
+    .kiosk-container { background: var(--bg-card); border-radius: 28px; padding: 40px 30px; box-shadow: 0 20px 40px -10px rgba(100,116,139,0.1); width: 100%; max-width: 420px; text-align: center; border: 1px solid var(--border-soft); }
     .campus-logo { max-height: 65px; width: auto; margin: 0 auto 20px auto; display: block; object-fit: contain; }
-    .form-control { border-radius: 16px; padding: 16px; border: 1.5px solid var(--border-soft); background: #f4f7f9; font-size: 1.1rem; text-align: center; font-weight: 600; color: var(--text-main); transition: all 0.3s; }
+    .form-control { border-radius: 16px; padding: 16px; border: 1.5px solid var(--border-soft); background: var(--bg-inner); font-size: 1.1rem; text-align: center; font-weight: 600; color: var(--text-main); transition: all 0.3s; }
     .form-control::placeholder { color: #94a3b8; font-weight: 500; font-size: 0.95rem; }
-    .form-control:focus { background-color: #ffffff; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,124,250,0.15); outline: none; }
+    .form-control:focus { background-color: var(--bg-card); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,124,250,0.15); outline: none; }
     .btn-custom { border-radius: 16px; padding: 16px; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; cursor: pointer; }
     .btn-accent { background-color: var(--accent); color: white; border: none; box-shadow: 0 8px 16px rgba(91,124,250,0.2); }
     .btn-accent:hover { background-color: var(--accent-hover); color: white; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(91,124,250,0.25); }
     .btn-accent:disabled { background-color: #a0aec0; box-shadow: none; transform: none; }
     #reader { border-radius: 20px; overflow: hidden; border: 3px solid var(--border-soft); background: #334155; min-height: 250px; margin-bottom: 20px; }
     #reader video { border-radius: 16px; object-fit: cover; }
-    .foto-profil { width: 120px; height: 120px; object-fit: cover; border: 5px solid #edf2ff; }
-    .avatar-placeholder { width: 120px; height: 120px; background: #edf2ff; color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; margin: 0 auto; }
+    .foto-profil { width: 120px; height: 120px; object-fit: cover; border: 5px solid var(--border-soft); }
+    .avatar-placeholder { width: 120px; height: 120px; background: var(--accent-soft, #edf2ff); color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; margin: 0 auto; }
     .hidden { display: none !important; }
     #reader.mirror-mode video { transform: scaleX(-1) !important; }
     .form-switch .form-check-input { width: 2.5em; height: 1.3em; cursor: pointer; }
     .form-switch .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
     .fade-in { animation: fadeIn 0.4s ease forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  </style>
+  
+    /* Dark mode: force Bootstrap light utilities + form fields to adapt */
+    [data-theme="dark"] .bg-light { background-color: var(--bg-inner) !important; }
+    [data-theme="dark"] .bg-white { background-color: var(--bg-card) !important; }
+    [data-theme="dark"] .text-dark { color: var(--text-main) !important; }
+    [data-theme="dark"] .form-control,
+    [data-theme="dark"] .form-select { background: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
+    [data-theme="dark"] .form-control::placeholder { color: var(--text-muted); }
+    [data-theme="dark"] .card { background-color: var(--bg-card); }
+    [data-theme="dark"] .table { color: var(--text-main); }
+    [data-theme="dark"] .table th { background-color: var(--bg-inner); color: var(--text-muted); }
+    [data-theme="dark"] .table td { border-color: var(--border-soft); }
+    [data-theme="dark"] .btn-light { background-color: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
+    [data-theme="dark"] .input-group-text { background: var(--bg-inner); color: var(--text-muted); border-color: var(--border-soft); }
+    [data-theme="dark"] .border { border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .border-top { border-color: var(--border-soft) !important; }
+</style>
 </head>
 <body>
   <!-- Dark mode toggle -->
@@ -76,7 +96,7 @@
       <p class="small mb-3 fw-medium" style="color: var(--text-muted);">Silakan scan QR dari Kartu Ujian Anda.</p>
       <div class="d-flex justify-content-end mb-2">
         <label class="d-flex align-items-center gap-2 px-3 py-1 rounded-pill border"
-               style="background:#f4f7f9; cursor:pointer; font-size:0.75rem; font-weight:600; color:var(--text-muted); user-select:none;">
+               style="background:var(--bg-inner); cursor:pointer; font-size:0.75rem; font-weight:600; color:var(--text-muted); user-select:none;">
           <i class="bi bi-camera-video" style="font-size:0.85rem;"></i>
           Mirror
           <input class="form-check-input mt-0" type="checkbox" id="mode-mirror"
@@ -103,7 +123,7 @@
       <div class="mb-4"><i class="bi bi-qr-code-scan" style="font-size: 3.5rem; color: var(--accent);"></i></div>
       <h4 class="fw-bold mb-1">QR Terdeteksi</h4>
       <p class="small mb-4 text-muted">Apakah nomor di bawah ini sudah benar?</p>
-      <div class="p-3 rounded-4 mb-4" style="background: #f8fafc; border: 2px dashed var(--accent);">
+      <div class="p-3 rounded-4 mb-4" style="background: var(--bg-inner); border: 2px dashed var(--accent);">
         <h2 class="fw-bold mb-0" id="display-scanned-id" style="color: var(--accent); letter-spacing: 1px;">-</h2>
       </div>
       <div class="d-grid gap-2">
@@ -125,13 +145,13 @@
         Silakan menuju ke pos pemeriksaan selanjutnya.<br>
         <strong style="color: var(--accent); display: inline-block; margin-top: 6px;">Harap tunjukkan kartu ujian ke panitia atau tim kesehatan.</strong>
       </p>
-      <div class="p-4 rounded-4 mb-4" style="background: #f8fafc; border: 1.5px solid var(--border-soft);">
+      <div class="p-4 rounded-4 mb-4" style="background: var(--bg-inner); border: 1.5px solid var(--border-soft);">
         <img id="qr-foto" src="" class="rounded-circle shadow-sm mb-3 foto-profil hidden" alt="Foto Peserta">
         <div id="qr-avatar" class="avatar-placeholder mb-3 hidden"><i class="bi bi-person-fill"></i></div>
         <h5 class="fw-bold mb-1" id="qr-nama" style="color: var(--text-main);">Nama Peserta</h5>
-        <span class="badge rounded-pill mt-1 px-3 py-2 fw-semibold shadow-sm" style="background-color: #edf2ff; color: var(--accent); font-size: 0.9rem; border: 1px solid #dbe4ff;" id="qr-no-peserta">-</span>
+        <span class="badge rounded-pill mt-1 px-3 py-2 fw-semibold shadow-sm" style="background-color: var(--accent-soft); color: var(--accent); font-size: 0.9rem; border: 1px solid var(--border-soft);" id="qr-no-peserta">-</span>
       </div>
-      <button id="btn-back-success" onclick="resetLayar()" class="btn btn-light fw-bold w-100 rounded-pill py-3" style="color: var(--text-main); background: #ffffff; border: 2px solid var(--border-soft); box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+      <button id="btn-back-success" onclick="resetLayar()" class="btn btn-light fw-bold w-100 rounded-pill py-3" style="color: var(--text-main); background: var(--bg-card); border: 2px solid var(--border-soft); box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
         <i class="bi bi-arrow-left me-1"></i> Kembali
       </button>
     </div>
