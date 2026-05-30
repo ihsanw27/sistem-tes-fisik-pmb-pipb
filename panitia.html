@@ -243,6 +243,30 @@
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  // ── Role cache helpers (module scope) ──────────────────────────────
+  const ROLE_TTL_MS = 60 * 60 * 1000; // 60 minutes
+
+  function roleKey(email) { return `pmbRole_${email}`; }
+
+  function getRoleCache(email) {
+    try {
+      const raw = localStorage.getItem(roleKey(email));
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (Date.now() - obj.ts > ROLE_TTL_MS) { localStorage.removeItem(roleKey(email)); return null; }
+      return obj.data;
+    } catch { return null; }
+  }
+
+  function setRoleCache(email, data) {
+    try { localStorage.setItem(roleKey(email), JSON.stringify({ ts: Date.now(), data })); } catch {}
+  }
+
+  function clearRoleCache() {
+    clearRoleCache();
+  }
+
+
   let qrScanner, activeNo = "", pesertaList = [], intervalSync;
   let isBulkMode = false, bulkQueue = [], isScanningPaused = false, currentRole = "";
   let namaPanitiaLogin = "";
@@ -325,33 +349,22 @@
     const email = authUser.email;
     const avatar = authUser.user_metadata?.avatar_url || '';
 
-    const ROLE_CACHE_KEY = `pmbRole_${email}`;
-    const ROLE_TTL_MS = 60 * 60 * 1000;
-
-    function getRoleCache() {
-      try {
-        const raw = localStorage.getItem(ROLE_CACHE_KEY);
-        if (!raw) return null;
-        const obj = JSON.parse(raw);
-        if (Date.now() - obj.ts > ROLE_TTL_MS) { localStorage.removeItem(ROLE_CACHE_KEY); return null; }
-        return obj.data;
-      } catch { return null; }
-    }
-
-    function setRoleCache(data) {
-      try { localStorage.setItem(ROLE_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch {}
-    }
-
-    let panitia = skipServerCheck ? getRoleCache() : null;
+    let panitia = skipServerCheck ? getRoleCache(email) : null;
     const fromCache = !!panitia;
 
     if (!panitia) {
       setLoadingMsg("Memuat data...");
-      const { data, error: dbErr } = await sb.from('panitia')
-        .select('nama,penugasan,jabatan')
-        .eq('email', email)
-        .single();
-      if (dbErr || !data) {
+            let dbResult;
+            try {
+              dbResult = await withTimeout(
+                sb.from('panitia').select('nama,penugasan,jabatan').eq('email', email).single(),
+                6000
+              );
+            } catch(e) {
+              showNetworkError(); _authGuard = false; return;
+            }
+            const { data, error: dbErr } = dbResult;
+            if (dbErr || !data) {
         await sb.auth.signOut();
         Swal.fire({ icon:'error', title:'Akses Ditolak',
           html:`Akun <b>${email}</b> tidak terdaftar sebagai panitia.<br><small>Hubungi administrator PMB.</small>`,
@@ -359,7 +372,7 @@
         return;
       }
       panitia = data;
-      setRoleCache(panitia);
+      setRoleCache(email, panitia);
     }
 
     // Management: preserve session, just redirect — never signOut
@@ -421,7 +434,7 @@
           if (fromCache) {
             const { data: fresh } = await sb.from('panitia')
               .select('nama,penugasan,jabatan').eq('email', email).single();
-            if (fresh) setRoleCache(fresh);
+            if (fresh) setRoleCache(email, fresh);
           }
         } catch(e) { /* offline — fine, cache + token refresh cover it */ }
       }, 0);
@@ -470,7 +483,7 @@
       await validateAndEnter(session.user, false);
 
     } else if (event === 'SIGNED_OUT') {
-      try { Object.keys(localStorage).filter(k => k.startsWith('pmbRole_')).forEach(k => localStorage.removeItem(k)); } catch {}
+      clearRoleCache();
       _authGuard = false;
       clearInterval(intervalSync);
       if (qrScanner) { try { await qrScanner.stop(); } catch(e){} }

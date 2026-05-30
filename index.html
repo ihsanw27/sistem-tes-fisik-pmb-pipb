@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg-page: #e8eef2;
@@ -104,31 +105,18 @@
     // =============================================
     // KONFIGURASI — ganti dengan URL & key Anda
     // =============================================
+    // =============================================
+    // KONFIGURASI — ganti dengan URL & key Anda
+    // =============================================
     const SUPABASE_URL = "https://vxbpwdewjepkcmwxseyb.supabase.co";
     const SUPABASE_KEY = "sb_publishable_T5P6jaawNwKwWTGXCHXvkQ_LDce9vd5";
+
+    const { createClient } = supabase;
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let qrScanner;
     let isScanningPaused = false;
     let tempID = "";
-
-    const sbHeaders = {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json'
-    };
-
-    async function sbGet(table, query) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: sbHeaders });
-      return res.json();
-    }
-
-    async function sbPatch(table, query, body) {
-      return fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
-        method: 'PATCH',
-        headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
-        body: JSON.stringify(body)
-      });
-    }
 
     window.onload = () => {
       qrScanner = new Html5Qrcode("reader");
@@ -183,28 +171,22 @@
       btnConfirm.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Memproses...`;
 
       try {
-        // Cari peserta
-        const rows = await sbGet('peserta', `nomor_peserta=eq.${encodeURIComponent(noInput)}&select=nomor_peserta,nama,foto,kehadiran`);
+        // Single RPC call — handles lookup + check-in atomically
+        // anon never writes the table directly (SECURITY DEFINER function)
+        const { data, error } = await sb.rpc('checkin_peserta', { p_nomor: noInput });
 
-        if (!rows || rows.length === 0) {
+        if (error) throw error;
+
+        if (!data || !data.found) {
           await Swal.fire({ icon: 'error', title: 'Tidak Ditemukan!', text: 'Nomor peserta tidak terdaftar di sistem.', confirmButtonColor: '#5b7cfa' });
           resetLayar(); return;
         }
 
-        const p = rows[0];
-
-        if (p.kehadiran) {
-          // Sudah check-in sebelumnya — tetap tampilkan sukses
-          Swal.fire({ icon: 'info', title: 'Sudah Check-In', text: `${p.nama} sudah tercatat hadir sebelumnya.`, timer: 2000, showConfirmButton: false, toast: true, position: 'top' });
-        } else {
-          // Update kehadiran
-          await sbPatch('peserta', `nomor_peserta=eq.${encodeURIComponent(noInput)}`, {
-            kehadiran: true,
-            timestamp_kehadiran: new Date().toISOString()
-          });
+        if (data.already) {
+          Swal.fire({ icon: 'info', title: 'Sudah Check-In', text: `${data.nama} sudah tercatat hadir sebelumnya.`, timer: 2000, showConfirmButton: false, toast: true, position: 'top' });
         }
 
-        tampilkanSukses(noInput, p.nama, p.foto);
+        tampilkanSukses(noInput, data.nama, data.foto);
 
       } catch (e) {
         Swal.fire({ icon: 'error', text: 'Koneksi Terputus. Periksa jaringan.', confirmButtonColor: '#5b7cfa' })
