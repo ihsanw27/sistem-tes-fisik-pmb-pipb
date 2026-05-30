@@ -86,6 +86,13 @@
     [data-theme="dark"] .border-top { border-color: var(--border-soft) !important; }
     [data-theme="dark"] .border-bottom { border-color: var(--border-soft) !important; }
 
+    /* Draft banner + amber alerts in dark mode — warm but not blinding */
+    [data-theme="dark"] .draft-banner-box { background: rgba(245,158,11,0.10) !important; border-color: #b45309 !important; }
+    [data-theme="dark"] .draft-amber-text { color: #fbbf24 !important; }
+    [data-theme="dark"] #draft-banner .text-muted { color: #d6a960 !important; }
+    [data-theme="dark"] #alert-existing { color: #fbbf24 !important; }
+    [data-theme="dark"] #alert-existing small { color: #fcd34d !important; }
+
     /* Dark mode for ALL SweetAlert2 modals */
     [data-theme="dark"] .swal2-popup { background: var(--bg-card) !important; color: var(--text-main) !important; }
     [data-theme="dark"] .swal2-title { color: var(--text-main) !important; }
@@ -205,12 +212,12 @@
         </div>
 
         <!-- Draft restore banner -->
-        <div id="draft-banner" class="hidden rounded-4 p-0 mb-3 shadow-sm fade-in" style="background:#fffbeb; border:1.5px solid #f59e0b; overflow:hidden;">
+        <div id="draft-banner" class="hidden rounded-4 p-0 mb-3 shadow-sm fade-in draft-banner-box" style="background:#fffbeb; border:1.5px solid #f59e0b; overflow:hidden;">
           <div class="px-3 pt-3 pb-2 d-flex justify-content-between align-items-start gap-2">
-            <div class="fw-bold small" style="color:#b45309;">
+            <div class="fw-bold small draft-amber-text" style="color:#b45309;">
               <i class="bi bi-floppy-fill me-1"></i> Draft Antrean Tersimpan
             </div>
-            <button onclick="clearDraft(true)" class="btn btn-sm p-0 lh-1" style="color:#b45309; background:none; border:none; font-size:1.1rem;" title="Hapus draft"><i class="bi bi-x-circle"></i></button>
+            <button onclick="clearDraft(true)" class="btn btn-sm p-0 lh-1 draft-amber-text" style="color:#b45309; background:none; border:none; font-size:1.1rem;" title="Hapus draft"><i class="bi bi-x-circle"></i></button>
           </div>
           <div id="draft-banner-info" class="px-3 pb-2" style="font-size:0.78rem;"></div>
           <div class="px-3 pb-3">
@@ -234,7 +241,7 @@
           </div>
         </div>
 
-        <div id="alert-existing" class="alert d-flex align-items-start rounded-4 border-0 mb-3 hidden shadow-sm" style="background: #fffbeb; color: #92400e; border-left: 5px solid #f59e0b !important;">
+        <div id="alert-existing" class="alert d-flex align-items-start rounded-4 border-0 mb-3 hidden shadow-sm draft-banner-box" style="background: #fffbeb; color: #92400e; border-left: 5px solid #f59e0b !important;">
           <i class="bi bi-clock-history fs-4 me-3 mt-1 text-warning"></i>
           <div>
             <small class="fw-bold d-block mb-1" style="color: #b45309;">DATA TELAH TERISI SEBELUMNYA</small>
