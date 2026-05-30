@@ -268,13 +268,18 @@
   }
 
   function clearRoleCache() {
-    clearRoleCache();
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('pmbRole_')) localStorage.removeItem(k);
+      });
+    } catch(e) {}
   }
 
 
   let qrScanner, activeNo = "", pesertaList = [], intervalSync;
   let isBulkMode = false, bulkQueue = [], isScanningPaused = false, currentRole = "";
   let pesertaChannel = null;
+  let isLoggingOut = false;
   let namaPanitiaLogin = "";
   let userEmail = "";
 
@@ -465,48 +470,61 @@
   }
 
   function logout() {
+    // STEP 1: mark logout in progress so beforeunload never blocks us
+    isLoggingOut = true;
+
     const btn = document.getElementById("btn-logout");
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
 
-    // Clear everything we control — instant, no network, no Promises
-    clearRoleCache();
-    clearTimeout(draftSaveTimer);
-    clearInterval(intervalSync);
-    if (pesertaChannel) { try { sb.removeChannel(pesertaChannel); } catch(e){} pesertaChannel = null; }
-    bulkQueue = [];
-
-    // Force-kill camera at the hardware level. qrScanner.stop() returns a Promise
-    // that can hang mid-frame; stopping the MediaStream tracks directly is instant.
+    // STEP 2: kill the camera FIRST and synchronously — stop every track on page
     forceStopCamera();
 
-    // Wipe Supabase session token directly — works even if network hangs
+    // STEP 3: clear local state (all synchronous, no Promises)
+    try { clearRoleCache(); } catch(e) {}
+    try { clearTimeout(draftSaveTimer); } catch(e) {}
+    try { clearInterval(intervalSync); } catch(e) {}
+    try { if (pesertaChannel) { sb.removeChannel(pesertaChannel); pesertaChannel = null; } } catch(e) {}
+    bulkQueue = [];
+
+    // STEP 4: wipe ALL Supabase localStorage keys directly
     try {
-      const ref = SUPABASE_URL.match(/\/\/(.+?)\.supabase/)?.[1];
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('sb-')) localStorage.removeItem(k);
+        if (k.startsWith('sb-') || k.startsWith('pmbRole_') || k.startsWith('pmbDraft_')) {
+          localStorage.removeItem(k);
+        }
       });
     } catch(e) {}
 
-    // signOut local scope, fire and forget
+    // STEP 5: fire signOut without awaiting (can't block us)
     try { sb.auth.signOut({ scope: 'local' }); } catch(e) {}
 
-    // Queue the reload after the current call stack clears so the camera
-    // teardown above actually takes effect before navigation.
-    setTimeout(() => { window.location.href = window.location.pathname; }, 50);
+    // STEP 6: hard navigate immediately. Try replace first; if anything is
+    // still holding the page, force a full reload as a fallback.
+    try {
+      window.location.replace(window.location.pathname);
+    } catch(e) {
+      window.location.href = window.location.pathname;
+    }
+    // Absolute fallback — if navigation somehow didn't fire, force reload
+    setTimeout(() => { try { window.location.reload(); } catch(e){} }, 300);
   }
 
-  // Stop every active camera track on the page — bypasses html5-qrcode's
-  // async stop() which can hang. Kills the hardware stream directly.
+  // Stop every active camera track on the page — synchronous, instant.
+  // This is the only reliable way to release the camera; html5-qrcode's
+  // stop() returns a Promise that can hang mid-frame on mobile.
   function forceStopCamera() {
+    // Kill all video element streams
     try {
-      const video = document.querySelector('#reader video');
-      if (video && video.srcObject) {
-        video.srcObject.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
-        video.srcObject = null;
-      }
+      document.querySelectorAll('video').forEach(v => {
+        if (v.srcObject) {
+          try { v.srcObject.getTracks().forEach(t => t.stop()); } catch(e){}
+          v.srcObject = null;
+        }
+        try { v.pause(); } catch(e){}
+      });
     } catch(e) {}
-    // Also try the library's stop, but don't wait on it
-    try { if (qrScanner) qrScanner.stop().catch(()=>{}); } catch(e) {}
+    // Best-effort library stop, never awaited
+    try { if (qrScanner) { qrScanner.stop().catch(()=>{}); qrScanner.clear(); } } catch(e) {}
   }
 
   // ── INIT ────────────────────────────────────────────
@@ -694,7 +712,7 @@
 
   // ── DRAFT MEMORY ─────────────────────────────────
   // Per-user key → two panitia on same device never clash
-  const DRAFT_KEY = () => `pmbDraft_${userEmail || 'anon'}`;
+  function DRAFT_KEY() { return `pmbDraft_${userEmail || 'anon'}`; }
   let draftSaveTimer = null;
 
   // Check if a queue item already has values entered
@@ -892,8 +910,9 @@
     Swal.fire({ icon:'success', title:'Draft Dihapus', timer:1200, showConfirmButton:false, toast:true, position:'top' });
   }
 
-  // Tab/window protection
+  // Tab/window protection — but NEVER block an intentional logout
   window.addEventListener('beforeunload', (e) => {
+    if (isLoggingOut) return; // logout in progress — allow navigation freely
     if (bulkQueue.length > 0) {
       saveDraftImmediate();
       e.preventDefault();
