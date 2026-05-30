@@ -90,6 +90,9 @@
     .stat-card-accent { background: linear-gradient(135deg, var(--accent) 0%, #3b5bdb 100%); }
     [data-theme="dark"] .stat-card-accent { background: linear-gradient(135deg, #3730a3 0%, #1e3a8a 100%); }
 
+    .form-switch .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+    .form-switch .form-check-input { cursor: pointer; }
+
     /* Dark mode for ALL SweetAlert2 modals */
     [data-theme="dark"] .swal2-popup { background: var(--bg-card) !important; color: var(--text-main) !important; }
     [data-theme="dark"] .swal2-title { color: var(--text-main) !important; }
@@ -244,9 +247,17 @@
             <h5 class="fw-bold mb-1">Rekapitulasi Penilaian Akhir</h5>
             <small class="text-muted" id="last-update-label">-</small>
           </div>
-          <div class="input-group search-group" style="max-width:350px; border:1.5px solid var(--border-soft); border-radius:8px; overflow:hidden;">
-            <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-search"></i></span>
-            <input type="text" id="searchInput" class="form-control border-0" placeholder="Cari Nama atau No Peserta..." onkeyup="filterTable()">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- Pause auto-sort toggle: when on, rows stop reordering by latest activity -->
+            <label class="form-switch d-flex align-items-center gap-2 px-3 py-2 rounded-pill border mb-0" style="cursor:pointer; font-size:0.75rem; font-weight:600; color:var(--text-muted); user-select:none; white-space:nowrap;" title="Hentikan pengurutan otomatis berdasarkan aktivitas terbaru">
+              <i class="bi bi-sort-down"></i>
+              <span class="d-none d-sm-inline">Urut Otomatis</span>
+              <input class="form-check-input mt-0" type="checkbox" id="autoSortToggle" checked onchange="toggleAutoSort()" style="width:2.4em; height:1.3em; cursor:pointer; margin-left:2px;">
+            </label>
+            <div class="input-group search-group" style="max-width:300px; border:1.5px solid var(--border-soft); border-radius:8px; overflow:hidden;">
+              <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-search"></i></span>
+              <input type="text" id="searchInput" class="form-control border-0" placeholder="Cari Nama atau No Peserta..." onkeyup="filterTable()">
+            </div>
           </div>
         </div>
         <div class="table-responsive">
@@ -341,6 +352,7 @@
 
 
     let allData = [], isLivestreamMode = false, liveInterval = null;
+    let autoSort = true; // sort table by latest activity (toggleable)
     let userRole = ''; // 'Viewer' | 'Admin' | other (panitia post names)
     let isViewer = false;
     let realtimeChannel = null, isRealtimeActive = false;
@@ -828,10 +840,27 @@
       Swal.fire({ title:`Detail ${pos}`, html:`<div class="text-start small"><p class="mb-1 fw-bold">Peserta: ${nama}</p><hr><p class="mb-1 fw-bold text-primary">Log Panitia:</p><p class="mb-2 bg-light p-2 rounded">Oleh: ${panitia||'-'}<br>Waktu: ${waktu||'-'}</p><p class="mb-1 fw-bold text-primary">Catatan:</p><div class="p-2 border rounded bg-white">${catatan||'Tidak ada catatan.'}</div></div>`, confirmButtonText:'Tutup', confirmButtonColor:'#5b7cfa' });
     }
 
+    // Most recent activity timestamp for a participant — the latest among all
+    // test timestamps, falling back to check-in time. Used to sort the table
+    // so whoever was just updated floats to the top (dynamic / live-feed feel).
+    function latestActivity(p) {
+      const stamps = [
+        p.timestamp_verifikasi, p.timestamp_lari, p.timestamp_ketinggian,
+        p.timestamp_sempit, p.timestamp_medis, p.timestamp_kehadiran
+      ].filter(Boolean).map(t => new Date(t).getTime()).filter(n => !isNaN(n));
+      return stamps.length ? Math.max(...stamps) : 0;
+    }
+
     function renderTable(rows) {
       let tbody = document.getElementById("tbody-peserta"); tbody.innerHTML = "";
       const hadirRows = rows.filter(p => p.kehadiran);
       if (!hadirRows.length) { tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted">Belum ada peserta yang check-in.</td></tr>`; document.getElementById("d-selesai-semua").innerText = 0; return; }
+
+      // Sort by newest activity first — only when auto-sort is enabled.
+      // When paused, keep DB order (nomor_peserta) so rows don't jump around.
+      if (autoSort) {
+        hadirRows.sort((a, b) => latestActivity(b) - latestActivity(a));
+      }
 
       let selesai = 0;
       const safe = v => (v||'').toString().replace(/'/g,"\\'").replace(/"/g,'&quot;');
@@ -857,11 +886,19 @@
         </tr>`;
       });
       document.getElementById("d-selesai-semua").innerText = selesai;
+      // Re-apply any active search filter so it survives the re-render/re-sort
+      filterTable();
     }
 
     function filterTable() {
       const input = document.getElementById("searchInput").value.toLowerCase();
       document.querySelectorAll(".peserta-row").forEach(row => { row.style.display = row.textContent.toLowerCase().includes(input) ? "" : "none"; });
+    }
+
+    function toggleAutoSort() {
+      autoSort = document.getElementById("autoSortToggle").checked;
+      // Re-render immediately to reflect the new ordering preference
+      if (allData && allData.length) renderTable(allData);
     }
 
     function exportCSV() {
