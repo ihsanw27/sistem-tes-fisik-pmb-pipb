@@ -63,6 +63,9 @@
     [data-theme="dark"] .form-control,
     [data-theme="dark"] .form-select { background: var(--bg-inner); color: var(--text-main); border-color: var(--border-soft); }
     [data-theme="dark"] .form-control::placeholder { color: var(--text-muted); }
+    [data-theme="dark"] .search-group { background: var(--bg-card); border-color: var(--border-soft) !important; }
+    [data-theme="dark"] .search-group .form-control,
+    [data-theme="dark"] .search-group .input-group-text { background: var(--bg-card); }
     [data-theme="dark"] .card { background-color: var(--bg-card); }
     [data-theme="dark"] .table {
       color: var(--text-main);
@@ -227,9 +230,9 @@
             <h5 class="fw-bold mb-1">Rekapitulasi Penilaian Akhir</h5>
             <small class="text-muted" id="last-update-label">-</small>
           </div>
-          <div class="input-group" style="max-width:350px;">
-            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Cari Nama atau No Peserta..." onkeyup="filterTable()">
+          <div class="input-group search-group" style="max-width:350px; border:1.5px solid var(--border-soft); border-radius:8px; overflow:hidden;">
+            <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" id="searchInput" class="form-control border-0" placeholder="Cari Nama atau No Peserta..." onkeyup="filterTable()">
           </div>
         </div>
         <div class="table-responsive">
@@ -800,8 +803,9 @@
       }
     }
 
-    function showBiodata(pStr) {
-      let p; try { p = JSON.parse(pStr); } catch { return; }
+    function showBiodata(nomor) {
+      const p = allData.find(x => x.nomor_peserta === nomor);
+      if (!p) return;
       const fotoHtml = p.foto ? `<img src="${p.foto}" class="photo-thumb-modal shadow-sm">` : `<div class="photo-thumb-modal bg-light d-flex align-items-center justify-content-center border" style="display:flex!important;"><i class="bi bi-person text-muted fs-1"></i></div>`;
       Swal.fire({ title:'Profil Peserta', html:`${fotoHtml}<div class="text-start small"><table class="table table-sm table-borderless"><tr><td width="100" class="fw-bold">NIK</td><td>: ${p.nik||'-'}</td></tr><tr><td class="fw-bold">Nama</td><td>: ${p.nama}</td></tr><tr><td class="fw-bold">Gender</td><td>: ${p.jenis_kelamin==='L'?'Laki-laki':'Perempuan'}</td></tr><tr><td class="fw-bold">Jalur</td><td>: ${p.jalur||'-'}</td></tr><tr class="border-top"><td colspan="2" class="pt-2 fw-bold text-primary">Pilihan Jurusan:</td></tr><tr><td class="fw-bold">Jurusan 1</td><td>: ${p.jurusan_1||'-'}</td></tr><tr><td class="fw-bold">Jurusan 2</td><td>: ${p.jurusan_2||'-'}</td></tr></table></div>`, confirmButtonText:'Tutup', confirmButtonColor:'#5b7cfa' });
     }
@@ -824,15 +828,13 @@
         const lariAda = p.stik_merah!==null||p.stik_kuning!==null||p.stik_hijau!==null||p.stik_biru!==null;
         if (p.lolos_verifikasi==='Lolos' && lariAda && p.lolos_ketinggian && p.lolos_sempit) selesai++;
 
-        const pJson = JSON.stringify({ nomor_peserta:p.nomor_peserta, nik:p.nik, nama:p.nama, jenis_kelamin:p.jenis_kelamin, jalur:p.jalur, jurusan_1:p.jurusan_1, jurusan_2:p.jurusan_2, foto:p.foto }).replace(/"/g,'&quot;');
-
         const makeBtnLog = (cat,pos,pan,wak,color) => (cat||pan)?`<a onclick="showDetail('${safe(p.nama)}','${pos}','${safe(cat)}','${safe(pan)}','${safe(wak)}')" class="text-${color} link-detail"><i class="bi bi-chat-left-text"></i> Log Detail</a>`:"";
 
         const badgeLari = lariAda ? `<div class="d-flex justify-content-center flex-wrap gap-1" style="font-size:0.75rem;"><span class="badge bg-danger">M:${p.stik_merah??0}</span><span class="badge bg-warning text-dark">K:${p.stik_kuning??0}</span><span class="badge bg-success">H:${p.stik_hijau??0}</span><span class="badge bg-primary">B:${p.stik_biru??0}</span></div>` : `<span class="badge bg-secondary">Pending</span>`;
 
         tbody.innerHTML += `<tr class="peserta-row">
           <td class="fw-bold text-muted" style="font-size:0.7rem;">${p.nomor_peserta}</td>
-          <td><div class="fw-bold">${p.nama}</div><a onclick='showBiodata("${pJson}")' class="text-primary link-detail"><i class="bi bi-person-circle"></i> Detail Biodata</a></td>
+          <td><div class="fw-bold">${p.nama}</div><a onclick="showBiodata('${p.nomor_peserta}')" class="text-primary link-detail" style="cursor:pointer;"><i class="bi bi-person-circle"></i> Detail Biodata</a></td>
           <td>${vBadge(p.lolos_verifikasi)}${makeBtnLog(p.catatan_verifikasi,'Verifikasi',p.panitia_verifikator,fmt(p.timestamp_verifikasi),'primary')}</td>
           <td class="text-center" style="min-width:150px;">${badgeLari}${makeBtnLog(p.catatan_lari,'Lari',p.panitia_lari,fmt(p.timestamp_lari),'primary')}</td>
           <td class="text-center">${vBadge(p.lolos_ketinggian)}${makeBtnLog(p.catatan_ketinggian,'Ketinggian',p.panitia_ketinggian,fmt(p.timestamp_ketinggian),'info')}</td>
