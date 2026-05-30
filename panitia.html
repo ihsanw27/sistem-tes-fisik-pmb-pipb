@@ -468,29 +468,45 @@
     const btn = document.getElementById("btn-logout");
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
 
-    // Clear everything we control — instant, no network
+    // Clear everything we control — instant, no network, no Promises
     clearRoleCache();
     clearTimeout(draftSaveTimer);
     clearInterval(intervalSync);
     if (pesertaChannel) { try { sb.removeChannel(pesertaChannel); } catch(e){} pesertaChannel = null; }
     bulkQueue = [];
-    try { if (qrScanner) qrScanner.stop(); } catch(e) {}
 
-    // Wipe Supabase's own session token from localStorage directly.
-    // This is what signOut() does locally — doing it ourselves means
-    // logout works even if the network call to Supabase hangs.
+    // Force-kill camera at the hardware level. qrScanner.stop() returns a Promise
+    // that can hang mid-frame; stopping the MediaStream tracks directly is instant.
+    forceStopCamera();
+
+    // Wipe Supabase session token directly — works even if network hangs
     try {
       const ref = SUPABASE_URL.match(/\/\/(.+?)\.supabase/)?.[1];
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith(`sb-${ref}-`) || k.startsWith('sb-')) localStorage.removeItem(k);
+        if (k.startsWith('sb-')) localStorage.removeItem(k);
       });
     } catch(e) {}
 
-    // Fire server signOut in background (don't await — may hang on bad network)
+    // signOut local scope, fire and forget
     try { sb.auth.signOut({ scope: 'local' }); } catch(e) {}
 
-    // Reload immediately — readLocalSession() will now return null → login screen
-    window.location.replace(window.location.pathname);
+    // Queue the reload after the current call stack clears so the camera
+    // teardown above actually takes effect before navigation.
+    setTimeout(() => { window.location.href = window.location.pathname; }, 50);
+  }
+
+  // Stop every active camera track on the page — bypasses html5-qrcode's
+  // async stop() which can hang. Kills the hardware stream directly.
+  function forceStopCamera() {
+    try {
+      const video = document.querySelector('#reader video');
+      if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
+        video.srcObject = null;
+      }
+    } catch(e) {}
+    // Also try the library's stop, but don't wait on it
+    try { if (qrScanner) qrScanner.stop().catch(()=>{}); } catch(e) {}
   }
 
   // ── INIT ────────────────────────────────────────────
